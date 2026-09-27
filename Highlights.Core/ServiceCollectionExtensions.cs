@@ -7,6 +7,7 @@ using Highlights.Core.Projects;
 using Highlights.Core.Stages;
 using Highlights.Core.Stages.Analysis;
 using Highlights.Core.Stages.Postprocessing;
+using Highlights.Core.Stages.Review;
 using Highlights.Core.Stages.Signals;
 using Highlights.Core.Stages.Transcription;
 using Microsoft.Extensions.Configuration;
@@ -52,6 +53,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPipelineStage, AudioSignalsStage>();
         services.AddSingleton<IPipelineStage, AnalyzeStage>();
         services.AddSingleton<IPipelineStage, PostprocessStage>();
+        services.AddSingleton<ReviewService>();
+        services.AddSingleton<IPipelineStage, ReviewStage>();
         services.AddSingleton<PipelineRunner>();
 
         return services;

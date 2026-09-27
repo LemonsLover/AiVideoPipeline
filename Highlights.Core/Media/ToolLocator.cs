@@ -9,9 +9,13 @@ public sealed class ToolLocator(IOptions<ToolsOptions> options)
 {
     private readonly Lazy<string> _ffmpeg = new(() => Resolve("ffmpeg", options.Value.FfmpegPath, null));
     private readonly Lazy<string> _ffprobe = new(() => Resolve("ffprobe", options.Value.FfprobePath, options.Value.FfmpegPath));
+    private readonly Lazy<string> _ffplay = new(() => Resolve("ffplay", null, options.Value.FfmpegPath));
 
     public string Ffmpeg => _ffmpeg.Value;
     public string Ffprobe => _ffprobe.Value;
+
+    /// <summary>Used by the CLI to preview clips; looked up next to ffmpeg, then in PATH.</summary>
+    public string Ffplay => _ffplay.Value;
 
     private static string Resolve(string tool, string? configured, string? siblingOf)
     {

@@ -10,6 +10,10 @@ public static class ProjectLayout
     public const string SignalsFile = "signals.json";
     public const string MomentsFile = "moments.json";
     public const string ClipsFile = "clips.json";
+    public const string ReviewFile = "review.json";
+    public const string EditFile = "edit.json";
+    public const string VideoOutputFile = "highlights.mp4";
+    public const string YouTubeFile = "youtube.txt";
 
     /// <summary><c>D:\Videos\game.mkv</c> → <c>D:\Videos\game.highlights</c>.</summary>
     public static string ProjectDirectoryFor(string videoPath)
