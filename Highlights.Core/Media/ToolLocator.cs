@@ -1,53 +1,99 @@
+using System.Collections.Concurrent;
 using Highlights.Core.Configuration;
 using Highlights.Core.Pipeline;
 using Microsoft.Extensions.Options;
 
 namespace Highlights.Core.Media;
 
-/// <summary>Resolves ffmpeg/ffprobe from configuration (file or directory) or PATH.</summary>
-public sealed class ToolLocator(IOptions<ToolsOptions> options)
+/// <summary>
+/// Finds ffmpeg/ffprobe/ffplay. Order: the tool's own setting, the Tools:FfmpegPath folder, a "tools\ffmpeg\bin"
+/// folder next to the app or above it (portable/dev layout), PATH (process, user and machine — a process started
+/// from an old shell may have a stale one), and WinGet's links folder. Only successful lookups are cached, and
+/// settings are re-read each time, so fixing appsettings.local.json takes effect without restarting.
+/// </summary>
+public sealed class ToolLocator(IOptionsMonitor<ToolsOptions> options)
 {
-    private readonly Lazy<string> _ffmpeg = new(() => Resolve("ffmpeg", options.Value.FfmpegPath, null));
-    private readonly Lazy<string> _ffprobe = new(() => Resolve("ffprobe", options.Value.FfprobePath, options.Value.FfmpegPath));
-    private readonly Lazy<string> _ffplay = new(() => Resolve("ffplay", null, options.Value.FfmpegPath));
+    private readonly ConcurrentDictionary<string, string> _found = new();
 
-    public string Ffmpeg => _ffmpeg.Value;
-    public string Ffprobe => _ffprobe.Value;
+    public string Ffmpeg => Resolve("ffmpeg", o => o.FfmpegPath);
+    public string Ffprobe => Resolve("ffprobe", o => o.FfprobePath);
 
-    /// <summary>Used by the CLI to preview clips; looked up next to ffmpeg, then in PATH.</summary>
-    public string Ffplay => _ffplay.Value;
+    /// <summary>Used by the CLI to preview clips.</summary>
+    public string Ffplay => Resolve("ffplay", _ => null);
 
-    private static string Resolve(string tool, string? configured, string? siblingOf)
+    private string Resolve(string tool, Func<ToolsOptions, string?> ownSetting)
     {
-        var exe = OperatingSystem.IsWindows() ? tool + ".exe" : tool;
+        var o = options.CurrentValue;
+        var own = ownSetting(o);
+        var cacheKey = $"{tool}|{own}|{o.FfmpegPath}";
+        if (_found.TryGetValue(cacheKey, out var cached) && File.Exists(cached))
+            return cached;
 
-        foreach (var candidate in new[] { configured, SiblingDirectory(siblingOf) })
+        var exe = OperatingSystem.IsWindows() ? tool + ".exe" : tool;
+        var settingName = $"Tools:{char.ToUpperInvariant(tool[0])}{tool[1..]}Path";
+
+        // An explicit path for this tool must be right; silently using another copy would hide the mistake.
+        if (!string.IsNullOrWhiteSpace(own))
         {
-            if (string.IsNullOrWhiteSpace(candidate))
-                continue;
-            var path = Path.GetFullPath(Environment.ExpandEnvironmentVariables(candidate), AppContext.BaseDirectory);
-            if (Directory.Exists(path))
-                path = Path.Combine(path, exe);
-            if (File.Exists(path))
-                return path;
-            if (candidate == configured)
-                throw new PipelineException($"{tool} not found at configured path: {path}");
+            var path = ToFile(own, exe);
+            return File.Exists(path)
+                ? _found[cacheKey] = path
+                : throw new PipelineException($"{tool} not found at {settingName} = {path} ({HighlightsConfiguration.UserSettingsPath}).");
         }
 
-        var fromPath = (Environment.GetEnvironmentVariable("PATH") ?? "")
-            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(dir => Path.Combine(dir, exe))
-            .FirstOrDefault(File.Exists);
+        var tried = new List<string>();
+        foreach (var dir in CandidateDirectories(o.FfmpegPath))
+        {
+            var path = Path.Combine(dir, exe);
+            if (File.Exists(path))
+                return _found[cacheKey] = path;
+            tried.Add(dir);
+        }
 
-        return fromPath ?? throw new PipelineException(
-            $"{tool} not found. Set Tools:{char.ToUpperInvariant(tool[0])}{tool[1..]}Path in appsettings.json or add it to PATH.");
+        throw new PipelineException(
+            $"{tool} not found. Set Tools:FfmpegPath (the folder with ffmpeg.exe, ffprobe.exe) in " +
+            $"{HighlightsConfiguration.UserSettingsPath}, or add ffmpeg to PATH.\n" +
+            $"Searched: {string.Join("; ", tried.Distinct(StringComparer.OrdinalIgnoreCase).Take(12))}");
     }
 
-    private static string? SiblingDirectory(string? configured)
+    private static IEnumerable<string> CandidateDirectories(string? ffmpegSetting)
     {
-        if (string.IsNullOrWhiteSpace(configured))
-            return null;
-        var path = Path.GetFullPath(Environment.ExpandEnvironmentVariables(configured), AppContext.BaseDirectory);
-        return Directory.Exists(path) ? path : Path.GetDirectoryName(path);
+        if (!string.IsNullOrWhiteSpace(ffmpegSetting))
+        {
+            var full = Path.GetFullPath(Environment.ExpandEnvironmentVariables(ffmpegSetting), AppContext.BaseDirectory);
+            yield return Directory.Exists(full) ? full : Path.GetDirectoryName(full) ?? full;
+        }
+
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+            yield return Path.Combine(dir.FullName, "tools", "ffmpeg", "bin");
+
+        foreach (var dir in PathDirectories())
+            yield return dir;
+
+        if (OperatingSystem.IsWindows())
+            yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "WinGet", "Links");
+    }
+
+    private static IEnumerable<string> PathDirectories()
+    {
+        IEnumerable<string?> sources = OperatingSystem.IsWindows()
+            ?
+            [
+                Environment.GetEnvironmentVariable("PATH"),
+                Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.User),
+                Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Machine),
+            ]
+            : [Environment.GetEnvironmentVariable("PATH")];
+
+        return sources
+            .SelectMany(p => (p ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .Select(Environment.ExpandEnvironmentVariables)
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string ToFile(string setting, string exe)
+    {
+        var path = Path.GetFullPath(Environment.ExpandEnvironmentVariables(setting), AppContext.BaseDirectory);
+        return Directory.Exists(path) ? Path.Combine(path, exe) : path;
     }
 }

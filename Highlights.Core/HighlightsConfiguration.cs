@@ -19,7 +19,8 @@ public static class HighlightsConfiguration
         return builder
             .SetBasePath(AppContext.BaseDirectory)
             .AddJsonFile("appsettings.json", optional: false)
-            .AddJsonFile(UserSettingsPath, optional: true)
+            // Reloaded on change: edits made while the desktop app is open (Settings button) apply right away.
+            .AddJsonFile(UserSettingsPath, optional: true, reloadOnChange: true)
             .AddEnvironmentVariables("HIGHLIGHTS_");
     }
 
