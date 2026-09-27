@@ -15,7 +15,11 @@ public sealed class OpenRouterOptions
     /// <summary>Primary model first, then fallbacks tried when a model fails or returns unusable output.</summary>
     public string[]? Models { get; set; }
 
-    public double Temperature { get; set; } = 0.3;
+    /// <summary>
+    /// Null = provider default (recommended: many current models reject it). When set, it is sent only to models
+    /// whose catalog entry lists it.
+    /// </summary>
+    public double? Temperature { get; set; }
     public int MaxOutputTokens { get; set; } = 16000;
 
     /// <summary>Re-asks per model when the JSON is malformed or fails validation (the error is sent back).</summary>

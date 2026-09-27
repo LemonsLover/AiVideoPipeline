@@ -123,9 +123,9 @@ public sealed class OpenRouterClient(
         {
             var id = m.GetProperty("id").GetString()!;
             var parameters = m.TryGetProperty("supported_parameters", out var sp) && sp.ValueKind == JsonValueKind.Array
-                ? sp.EnumerateArray().Select(x => x.GetString()).ToHashSet()
-                : [];
-            catalog[id] = new LlmModelInfo(id, parameters.Contains("structured_outputs"),
+                ? sp.EnumerateArray().Select(x => x.GetString()!).ToHashSet(StringComparer.OrdinalIgnoreCase)
+                : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            catalog[id] = new LlmModelInfo(id, parameters,
                 m.TryGetProperty("context_length", out var ctx) && ctx.ValueKind == JsonValueKind.Number ? ctx.GetInt32() : null);
         }
         return catalog;

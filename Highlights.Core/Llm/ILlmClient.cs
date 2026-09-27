@@ -27,7 +27,12 @@ public sealed record LlmUsage(int PromptTokens, int CompletionTokens, decimal? C
 
 public sealed record LlmResponse(string Content, string Model, LlmUsage Usage, string? FinishReason);
 
-public sealed record LlmModelInfo(string Id, bool SupportsJsonSchema, int? ContextLength);
+/// <param name="SupportedParameters">Request parameters the model accepts (OpenRouter "supported_parameters").</param>
+public sealed record LlmModelInfo(string Id, IReadOnlySet<string> SupportedParameters, int? ContextLength)
+{
+    public bool SupportsJsonSchema => SupportedParameters.Contains("structured_outputs");
+    public bool Supports(string parameter) => SupportedParameters.Contains(parameter);
+}
 
 public interface ILlmClient
 {

@@ -53,17 +53,32 @@ public sealed class StructuredLlm(ILlmClient client, IOptions<OpenRouterOptions>
                 progress.Report(new StageProgress(stage, null,
                     attempt == 0 ? $"asking {model}" : $"asking {model} to fix its answer (attempt {attempt + 1})", "llm"));
 
+                // Optional parameters are sent only when the model lists them: with json_schema we require
+                // providers to support every parameter, so an unsupported one blocks routing entirely.
+                var request = new LlmRequest
+                {
+                    Model = model,
+                    Messages = conversation,
+                    Temperature = o.Temperature is { } t && info?.Supports("temperature") == true ? t : null,
+                    MaxOutputTokens = info is null || info.Supports("max_tokens") ? o.MaxOutputTokens : null,
+                    JsonSchema = useSchema ? schema : null,
+                };
+
                 LlmResponse response;
                 try
                 {
-                    response = await client.CompleteAsync(new LlmRequest
+                    try
                     {
-                        Model = model,
-                        Messages = conversation,
-                        Temperature = o.Temperature,
-                        MaxOutputTokens = o.MaxOutputTokens,
-                        JsonSchema = useSchema ? schema : null,
-                    }, cancellationToken);
+                        response = await client.CompleteAsync(request, cancellationToken);
+                    }
+                    catch (LlmException ex) when (!ex.IsFatal && IsUnroutableParameters(ex)
+                                                  && (request.Temperature is not null || request.MaxOutputTokens is not null))
+                    {
+                        // The catalog lists parameters across all providers; the ones that enforce the schema
+                        // may still reject e.g. temperature. Retry with only the essential parameters.
+                        logger.LogWarning("{Model}: retrying without optional parameters", model);
+                        response = await client.CompleteAsync(request with { Temperature = null, MaxOutputTokens = null }, cancellationToken);
+                    }
                 }
                 catch (LlmException ex) when (!ex.IsFatal)
                 {
@@ -118,6 +133,9 @@ public sealed class StructuredLlm(ILlmClient client, IOptions<OpenRouterOptions>
         }
         return value is null ? "the JSON is null" : validate(value);
     }
+
+    private static bool IsUnroutableParameters(LlmException ex) =>
+        ex.Message.Contains("No endpoints found that can handle the requested parameters", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Strips markdown fences / surrounding prose: takes the outermost {...}.</summary>
     internal static string? ExtractJson(string content)
