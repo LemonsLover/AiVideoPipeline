@@ -94,24 +94,37 @@ public sealed class RenderStage(IFfmpegRunner ffmpeg, IOptions<RenderOptions> op
             args.AddRange(["-c:a", "flac", "render.mkv"]);
             await ffmpeg.RunAsync(args, plan.TotalSeconds, new FractionProgress(progress, Name, 0, 0.92), cancellationToken, work);
 
-            // Pass 2: measure loudness; pass 3: copy the video, encode AAC once with the loudness correction.
-            string[] audioFilter = [];
-            if (o.LoudnessLufs is { } lufs)
+            // Pass 2: find the loudness filter; pass 3: copy the video, encode AAC once with it. AAC can overshoot
+            // on loud transients (yells), so the true peak is checked and the mux redone with more limiter headroom.
+            var margin = 0.5;
+            for (var attempt = 0; ; attempt++)
             {
-                progress.Report(new StageProgress(Name, 0.93, "normalizing loudness"));
-                var (filter, before, after) = await LoudnessNormalizer.BuildFilterAsync(
-                    ffmpeg, Path.Combine(work, "render.mkv"), lufs, o.TruePeakDb, cancellationToken);
-                logger.LogInformation("Loudness {Before} → {After} LUFS", before, after);
-                loudness = (before, after);
-                audioFilter = ["-af", filter];
-            }
+                string[] audioFilter = [];
+                if (o.LoudnessLufs is { } lufs)
+                {
+                    progress.Report(new StageProgress(Name, 0.93, "normalizing loudness"));
+                    var (filter, before, after) = await LoudnessNormalizer.BuildFilterAsync(
+                        ffmpeg, Path.Combine(work, "render.mkv"), lufs, o.TruePeakDb, margin, cancellationToken);
+                    logger.LogInformation("Loudness {Before} → {After} LUFS (limiter margin {Margin} dB)", before, after, margin);
+                    loudness = (before, after);
+                    audioFilter = ["-af", filter];
+                }
 
-            progress.Report(new StageProgress(Name, 0.95, "writing mp4"));
-            await ffmpeg.RunAsync(
-            [
-                "-y", "-i", "render.mkv", "-map", "0:v", "-map", "0:a", "-map_metadata", "0", "-map_chapters", "0",
-                "-c:v", "copy", .. audioFilter, "-c:a", "aac", "-b:a", o.AudioBitrate, "-movflags", "+faststart", "out.mp4",
-            ], plan.TotalSeconds, new FractionProgress(progress, Name, 0.95, 1), cancellationToken, work);
+                progress.Report(new StageProgress(Name, 0.95, "writing mp4"));
+                await ffmpeg.RunAsync(
+                [
+                    "-y", "-i", "render.mkv", "-map", "0:v", "-map", "0:a", "-map_metadata", "0", "-map_chapters", "0",
+                    "-c:v", "copy", .. audioFilter, "-c:a", "aac", "-b:a", o.AudioBitrate, "-movflags", "+faststart", "out.mp4",
+                ], plan.TotalSeconds, new FractionProgress(progress, Name, 0.95, 1), cancellationToken, work);
+
+                if (o.LoudnessLufs is null || attempt == 2)
+                    break;
+                var peak = await LoudnessNormalizer.MeasureTruePeakAsync(ffmpeg, tmpOutput, cancellationToken);
+                if (peak <= o.TruePeakDb + 0.3)
+                    break;
+                logger.LogInformation("True peak {Peak} dBTP is above {Target}; redoing audio with more headroom", peak, o.TruePeakDb);
+                margin += peak - o.TruePeakDb;
+            }
 
             File.Move(tmpOutput, output, overwrite: true);
         }

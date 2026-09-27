@@ -20,13 +20,14 @@ internal static partial class LoudnessNormalizer
     private const int MaxIterations = 3;
 
     /// <summary>Returns the audio filter that normalizes <paramref name="input"/> to <paramref name="lufs"/>.</summary>
+    /// <param name="limiterMarginDb">How far below <paramref name="truePeakDb"/> the limiter sits (covers AAC overshoot).</param>
     public static async Task<(string Filter, double Before, double After)> BuildFilterAsync(
-        IFfmpegRunner ffmpeg, string input, double lufs, double truePeakDb, CancellationToken cancellationToken)
+        IFfmpegRunner ffmpeg, string input, double lufs, double truePeakDb, double limiterMarginDb, CancellationToken cancellationToken)
     {
-        // The limiter works on sample peaks; stay a bit below the true-peak target to leave room for AAC overshoot.
-        var limit = Math.Clamp(Math.Pow(10, (truePeakDb - 0.5) / 20), 0.0625, 1);
+        // alimiter works on sample peaks: running it 4x oversampled catches inter-sample (true) peaks.
+        var limit = Math.Clamp(Math.Pow(10, (truePeakDb - limiterMarginDb) / 20), 0.0625, 1);
         string Filter(double gain) => FormattableString.Invariant(
-            $"{Compressor},volume={gain:0.##}dB,alimiter=limit={limit:0.####}:attack=5:release=50:level=0");
+            $"{Compressor},volume={gain:0.##}dB,aresample=192000,alimiter=limit={limit:0.####}:attack=5:release=50:level=0");
 
         var before = await MeasureAsync(ffmpeg, input, "anull", cancellationToken);
         var compressed = await MeasureAsync(ffmpeg, input, Compressor, cancellationToken);
@@ -45,6 +46,17 @@ internal static partial class LoudnessNormalizer
         return (Filter(gain) + ",aresample=48000", before, after);
     }
 
+    /// <summary>True peak (dBTP) of a file's audio.</summary>
+    public static async Task<double> MeasureTruePeakAsync(IFfmpegRunner ffmpeg, string input, CancellationToken cancellationToken)
+    {
+        var log = await ffmpeg.RunForLogAsync(["-i", input, "-vn", "-af", "ebur128=peak=true", "-f", "null", "-"], cancellationToken);
+        var matches = PeakRegex().Matches(log);
+        if (matches.Count == 0)
+            throw new PipelineException("Could not measure the true peak (no ebur128 summary).");
+        var value = matches[^1].Groups[1].Value;
+        return value == "-inf" ? -70 : double.Parse(value, CultureInfo.InvariantCulture);
+    }
+
     /// <summary>Integrated loudness (LUFS) of <paramref name="input"/>'s audio after <paramref name="filter"/>.</summary>
     private static async Task<double> MeasureAsync(IFfmpegRunner ffmpeg, string input, string filter, CancellationToken cancellationToken)
     {
@@ -59,4 +71,7 @@ internal static partial class LoudnessNormalizer
 
     [GeneratedRegex(@"^\s+I:\s+(-?\d+(?:\.\d+)?|-inf) LUFS", RegexOptions.Multiline)]
     private static partial Regex IntegratedRegex();
+
+    [GeneratedRegex(@"^\s+Peak:\s+(-?\d+(?:\.\d+)?|-inf) dBFS", RegexOptions.Multiline)]
+    private static partial Regex PeakRegex();
 }
