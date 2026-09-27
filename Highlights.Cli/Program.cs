@@ -35,6 +35,7 @@ var root = new RootCommand("Finds funny moments in gameplay recordings and build
     TranscribeCommand.Create(host.Services),
     SignalsCommand.Create(host.Services),
     AnalyzeCommand.Create(host.Services),
+    PostprocessCommand.Create(host.Services),
 };
 
 return await root.Parse(args).InvokeAsync();

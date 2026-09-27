@@ -2,6 +2,7 @@ using System.Globalization;
 using Highlights.Core.Pipeline;
 using Highlights.Core.Projects;
 using Highlights.Core.Stages.Analysis;
+using Highlights.Core.Stages.Postprocessing;
 using Spectre.Console;
 
 namespace Highlights.Cli.Rendering;
@@ -72,6 +73,20 @@ internal static class ProjectView
         }
         AnsiConsole.Write(table);
         AnsiConsole.MarkupLineInterpolated($"[italic]{doc.Summary}[/]");
+    }
+
+    public static void WriteClips(ClipsDocument clips, MomentsDocument moments)
+    {
+        var table = new Table().Border(TableBorder.Rounded).AddColumns("Clip", "Source", "Len", "Score", "Moments", "Title");
+        foreach (var c in clips.Clips)
+            table.AddRow(c.Id, $"{Duration(c.Start)}–{Duration(c.End)}", $"{c.Duration:0}s", c.Score.ToString(CultureInfo.InvariantCulture),
+                string.Join(",", c.MomentIds), Markup.Escape(c.Title));
+        AnsiConsole.Write(table);
+
+        var used = clips.Clips.SelectMany(c => c.MomentIds).ToHashSet();
+        var target = clips.TargetMinutes is > 0 ? $", target {clips.TargetMinutes} min" : "";
+        AnsiConsole.MarkupLineInterpolated(
+            $"[bold]{clips.Clips.Count}[/] clips, [bold]{Duration(clips.TotalSeconds)}[/] total · {used.Count}/{moments.Moments.Count} moments (score ≥ {clips.MinScore}{target})");
     }
 
     public static string Duration(double seconds) =>

@@ -6,6 +6,7 @@ using Highlights.Core.Pipeline;
 using Highlights.Core.Projects;
 using Highlights.Core.Stages;
 using Highlights.Core.Stages.Analysis;
+using Highlights.Core.Stages.Postprocessing;
 using Highlights.Core.Stages.Signals;
 using Highlights.Core.Stages.Transcription;
 using Microsoft.Extensions.Configuration;
@@ -24,6 +25,7 @@ public static class ServiceCollectionExtensions
         services.Configure<AudioSignalsOptions>(configuration.GetSection(AudioSignalsOptions.SectionName));
         services.Configure<OpenRouterOptions>(configuration.GetSection(OpenRouterOptions.SectionName));
         services.Configure<AnalyzeOptions>(configuration.GetSection(AnalyzeOptions.SectionName));
+        services.Configure<PostprocessOptions>(configuration.GetSection(PostprocessOptions.SectionName));
 
         services.AddSingleton<ToolLocator>();
         services.AddSingleton<IMediaProbe, MediaProbe>();
@@ -49,6 +51,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPipelineStage, TranscribeStage>();
         services.AddSingleton<IPipelineStage, AudioSignalsStage>();
         services.AddSingleton<IPipelineStage, AnalyzeStage>();
+        services.AddSingleton<IPipelineStage, PostprocessStage>();
         services.AddSingleton<PipelineRunner>();
 
         return services;

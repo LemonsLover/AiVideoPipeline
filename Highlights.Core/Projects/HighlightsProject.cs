@@ -65,6 +65,12 @@ public sealed class ProjectSettings
 
     /// <summary>Game profile id (file name in the profiles directory, e.g. "bigwalk", "cs2").</summary>
     public string? Game { get; set; }
+
+    /// <summary>Postprocess: minimum moment score to include.</summary>
+    public int? MinScore { get; set; }
+
+    /// <summary>Postprocess: target video length in minutes (0 = no target, take everything above the threshold).</summary>
+    public double? TargetMinutes { get; set; }
 }
 
 public sealed record LlmUsageRecord(
