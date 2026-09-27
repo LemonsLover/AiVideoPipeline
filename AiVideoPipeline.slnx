@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="AiVideoPipeline/AiVideoPipeline.csproj" />
+  <Project Path="Highlights.Cli/Highlights.Cli.csproj" />
+  <Project Path="Highlights.Core/Highlights.Core.csproj" />
+</Solution>
