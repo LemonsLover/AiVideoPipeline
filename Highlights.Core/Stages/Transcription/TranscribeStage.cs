@@ -22,7 +22,8 @@ public sealed class TranscribeStage(
     public string DescribeInputs(HighlightsProject project)
     {
         var o = options.Value;
-        return string.Join('|', Model(project), Language(project), o.WordTimestamps, o.Prompt);
+        return string.Join('|', Model(project), Language(project), o.WordTimestamps, o.Prompt, o.NoContext,
+            o.MaxConsecutiveRepeats, string.Join('/', o.EffectiveHallucinationFilters));
     }
 
     public async Task<IReadOnlyDictionary<string, string>> RunAsync(
@@ -46,10 +47,13 @@ public sealed class TranscribeStage(
             builder.WithPrompt(o.Prompt);
         if (o.WordTimestamps)
             builder.WithTokenTimestamps();
+        if (o.NoContext)
+            builder.WithNoContext();
 
         var audioPath = project.PathOf(ProjectLayout.AudioFile);
         var duration = Math.Max(1, (new FileInfo(audioPath).Length - 44) / (double)BytesPerSecond);
         var segments = new List<TranscriptSegment>();
+        var filter = new HallucinationFilter(o.MaxConsecutiveRepeats, o.EffectiveHallucinationFilters);
         string? detected = null;
 
         progress.Report(new StageProgress(Name, 0, $"transcribing on {runtime}"));
@@ -60,7 +64,7 @@ public sealed class TranscribeStage(
             {
                 detected ??= s.Language;
                 var text = s.Text.Trim();
-                if (text.Length == 0)
+                if (text.Length == 0 || filter.ShouldDrop(text))
                     continue;
 
                 segments.Add(new TranscriptSegment
@@ -94,6 +98,7 @@ public sealed class TranscribeStage(
             ["runtime"] = runtime?.ToString() ?? "unknown",
             ["language"] = detected ?? language,
             ["segments"] = segments.Count.ToString(CultureInfo.InvariantCulture),
+            ["droppedSegments"] = filter.Dropped.ToString(CultureInfo.InvariantCulture),
         };
     }
 

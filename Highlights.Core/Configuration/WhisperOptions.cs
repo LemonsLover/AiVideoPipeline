@@ -30,6 +30,30 @@ public sealed class WhisperOptions
     /// <summary>Store per-word timestamps in transcript.json.</summary>
     public bool WordTimestamps { get; set; } = true;
 
+    /// <summary>
+    /// Don't condition on previously decoded text. Prevents the repetition loops Whisper falls into
+    /// on long noisy recordings (game sounds between phrases).
+    /// </summary>
+    public bool NoContext { get; set; } = true;
+
+    /// <summary>A segment repeating the same text more than this many times in a row is dropped.</summary>
+    public int MaxConsecutiveRepeats { get; set; } = 2;
+
+    /// <summary>Known Whisper hallucinations (subtitle credits etc.); segments containing them are dropped.</summary>
+    public string[]? HallucinationFilters { get; set; }
+
+    public IReadOnlyList<string> EffectiveHallucinationFilters => HallucinationFilters ??
+    [
+        "Продолжение следует",
+        "Субтитры сделал",
+        "Субтитры создавал",
+        "Редактор субтитров",
+        "Спасибо за просмотр",
+        "ПОДПИШИСЬ",
+        "DimaTorzok",
+        "Thanks for watching",
+    ];
+
     public IReadOnlyList<RuntimeLibrary> EffectiveRuntimes =>
         Runtimes is { Length: > 0 } ? Runtimes : [RuntimeLibrary.Cuda, RuntimeLibrary.Cpu];
 
