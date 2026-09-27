@@ -144,7 +144,7 @@ public sealed class OpenRouterClient(
                       : null);
         return string.IsNullOrWhiteSpace(key)
             ? throw new LlmException(
-                $"OpenRouter API key not found: set OpenRouter:ApiKey in appsettings.local.json or the {name} environment variable.",
+                $"OpenRouter API key not found: set OpenRouter:ApiKey in {HighlightsConfiguration.UserSettingsPath} or the {name} environment variable.",
                 isFatal: true)
             : key.Trim();
     }

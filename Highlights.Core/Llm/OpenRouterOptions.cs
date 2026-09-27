@@ -6,7 +6,7 @@ public sealed class OpenRouterOptions
 
     public string BaseUrl { get; set; } = "https://openrouter.ai/api/v1/";
 
-    /// <summary>API key; put it only in appsettings.local.json (gitignored). Empty = use the environment variable.</summary>
+    /// <summary>API key; put it only in %APPDATA%\Highlights\appsettings.local.json. Empty = use the environment variable.</summary>
     public string? ApiKey { get; set; }
 
     /// <summary>Fallback when <see cref="ApiKey"/> is empty.</summary>

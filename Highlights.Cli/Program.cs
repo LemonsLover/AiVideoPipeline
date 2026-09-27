@@ -13,10 +13,7 @@ var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSetti
     ContentRootPath = AppContext.BaseDirectory,
 });
 
-builder.Configuration
-    .AddJsonFile("appsettings.json", optional: false)
-    .AddJsonFile("appsettings.local.json", optional: true)
-    .AddEnvironmentVariables("HIGHLIGHTS_");
+builder.Configuration.AddHighlightsConfiguration();
 
 // Logs go to stderr so they don't interfere with Spectre progress output.
 builder.Logging

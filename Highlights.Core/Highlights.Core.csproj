@@ -7,6 +7,8 @@
 
   <ItemGroup>
     <PackageReference Include="CliWrap" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Http" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
@@ -20,7 +22,7 @@
 
   <ItemGroup>
     <!-- Editable without recompiling; copied next to the executable of every app that references Core. -->
-    <Content Include="Profiles\*.json;Prompts\*.md" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="appsettings.json;Profiles\*.json;Prompts\*.md" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
