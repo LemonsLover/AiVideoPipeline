@@ -61,9 +61,21 @@ public sealed partial class PlayerService : ObservableObject, IDisposable
         Player.Media = media;
         LoadedPath = path;
         _stopAt = null;
-        // VLC only reports the length once playback starts; start paused at the beginning.
+        // VLC reports the length and shows a frame only once playback starts: play muted, pause on the first
+        // "Playing" event. VLC events arrive on its own thread and must not call back into VLC synchronously.
+        Player.Mute = true;
+        Player.Playing += PauseOnFirstFrame;
         Player.Play();
-        Player.SetPause(true);
+    }
+
+    private void PauseOnFirstFrame(object? sender, EventArgs e)
+    {
+        Player.Playing -= PauseOnFirstFrame;
+        ThreadPool.QueueUserWorkItem(_ =>
+        {
+            Player.SetPause(true);
+            Player.Mute = false;
+        });
     }
 
     public void Unload()

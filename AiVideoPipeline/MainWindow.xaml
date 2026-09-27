@@ -128,7 +128,7 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
             <Border Background="Black" CornerRadius="6">
-                <vlc:VideoView x:Name="VideoView" />
+                <vlc:VideoView x:Name="VideoView" Background="Black" />
             </Border>
 
             <StackPanel Grid.Row="1" Margin="0,8,0,0">

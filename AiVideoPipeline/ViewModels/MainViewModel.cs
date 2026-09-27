@@ -287,10 +287,25 @@ public sealed partial class MainViewModel : ObservableObject
         var stage = Stages.FirstOrDefault(s => s.Name == p.Stage);
         if (stage is null)
             return;
-        if (_startedStages.Add(p.Stage) && p.Message != "up to date")
-            AddLog($"{stage.Title}…");
+        if (p.Message == "up to date")
+        {
+            // Skipped dependency: keep its summary line.
+            stage.State = StageState.UpToDate;
+            return;
+        }
 
-        stage.State = p.Message == "up to date" ? StageState.UpToDate : StageState.Running;
+        if (_startedStages.Add(p.Stage))
+        {
+            AddLog($"{stage.Title}…");
+            // Stages run one after another, so whatever was running before has finished.
+            foreach (var other in Stages.Where(s => s != stage && s.State == StageState.Running))
+            {
+                other.State = StageState.UpToDate;
+                other.Progress = null;
+            }
+        }
+
+        stage.State = StageState.Running;
         stage.Progress = p.Fraction;
         if (p.Message is not null)
             stage.Detail = p.Step is null ? p.Message : $"{p.Step}: {p.Message}";
@@ -389,9 +404,11 @@ public sealed partial class MainViewModel : ObservableObject
     private void UpdateClipsSummary()
     {
         var included = Clips.Where(c => c.Included).ToList();
-        ClipsSummary = Clips.Count == 0
-            ? "No clips yet — run \"Build clips\"."
-            : $"{included.Count} of {Clips.Count} clips · {Format(included.Sum(c => c.Duration))}";
+        ClipsSummary = Clips.Count > 0
+            ? $"{included.Count} of {Clips.Count} clips · {Format(included.Sum(c => c.Duration))}"
+            : Project is not null && File.Exists(Project.PathOf(ProjectLayout.ClipsFile))
+                ? $"No moment scored {MinScore}+ — lower \"Min score\"."
+                : "No clips yet — run \"Build clips\".";
     }
 
     /// <summary>Saves review.json shortly after the last edit (edits come in bursts while nudging).</summary>

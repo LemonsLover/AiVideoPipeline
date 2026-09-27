@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using Highlights.Core.Pipeline;
 using Highlights.Core.Projects;
+using Highlights.Core.Stages.Analysis;
 using Highlights.Core.Stages.Postprocessing;
 
 namespace Highlights.Core.Stages.Review;
@@ -23,6 +24,13 @@ public sealed class ReviewStage : IPipelineStage
         HighlightsProject project, IProgress<StageProgress> progress, CancellationToken cancellationToken)
     {
         var clips = await JsonDefaults.ReadAsync<ClipsDocument>(project.PathOf(ProjectLayout.ClipsFile), cancellationToken);
+        if (clips.Clips.Count == 0)
+        {
+            var moments = await JsonDefaults.ReadAsync<MomentsDocument>(project.PathOf(ProjectLayout.MomentsFile), cancellationToken);
+            var best = moments.Moments.Count == 0 ? "no moments were found" : $"the best scored {moments.Moments.Max(m => m.Score)}";
+            throw new PipelineException(
+                $"No clips to render: no moment scored {clips.MinScore} or higher ({best}). Lower the minimum score.");
+        }
         var reviewPath = project.PathOf(ProjectLayout.ReviewFile);
         var review = File.Exists(reviewPath)
             ? await JsonDefaults.ReadAsync<ReviewDocument>(reviewPath, cancellationToken)

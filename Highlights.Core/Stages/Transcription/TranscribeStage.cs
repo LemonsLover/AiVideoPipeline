@@ -108,8 +108,35 @@ public sealed class TranscribeStage(
     /// <summary>The native library is loaded once per process, so the order only matters before the first load.</summary>
     private static void ConfigureRuntimes(IReadOnlyList<RuntimeLibrary> order)
     {
-        if (RuntimeOptions.LoadedLibrary is null)
-            RuntimeOptions.RuntimeLibraryOrder = [.. order];
+        if (RuntimeOptions.LoadedLibrary is not null)
+            return;
+        RuntimeOptions.RuntimeLibraryOrder = [.. order];
+        if (order.Contains(RuntimeLibrary.Cuda) || order.Contains(RuntimeLibrary.Cuda12))
+            AddCudaToPath();
+    }
+
+    /// <summary>
+    /// The CUDA runtime needs cuBLAS/cudart from the CUDA Toolkit. Its installer adds them to the machine PATH, but a
+    /// process started from a shell that predates the installation doesn't see that — Whisper then silently falls
+    /// back to CPU. CUDA_PATH (read from the machine environment if needed) points at the toolkit either way.
+    /// </summary>
+    private static void AddCudaToPath()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+        var cuda = Environment.GetEnvironmentVariable("CUDA_PATH")
+                   ?? Environment.GetEnvironmentVariable("CUDA_PATH", EnvironmentVariableTarget.Machine);
+        if (string.IsNullOrEmpty(cuda))
+            return;
+
+        var path = Environment.GetEnvironmentVariable("PATH") ?? "";
+        var entries = path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
+        var missing = new[] { Path.Combine(cuda, "bin", "x64"), Path.Combine(cuda, "bin") }
+            .Where(Directory.Exists)
+            .Where(d => !entries.Contains(d, StringComparer.OrdinalIgnoreCase))
+            .ToList();
+        if (missing.Count > 0)
+            Environment.SetEnvironmentVariable("PATH", string.Join(Path.PathSeparator, [.. missing, path]));
     }
 
     /// <summary>
