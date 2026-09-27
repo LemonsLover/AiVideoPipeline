@@ -133,6 +133,9 @@ public sealed class OpenRouterClient(
 
     private string GetApiKey()
     {
+        if (!string.IsNullOrWhiteSpace(options.Value.ApiKey))
+            return options.Value.ApiKey.Trim();
+
         var name = options.Value.ApiKeyEnvironmentVariable;
         var key = Environment.GetEnvironmentVariable(name)
                   ?? (OperatingSystem.IsWindows()
@@ -140,7 +143,9 @@ public sealed class OpenRouterClient(
                         ?? Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.Machine)
                       : null);
         return string.IsNullOrWhiteSpace(key)
-            ? throw new LlmException($"OpenRouter API key not found: set the {name} environment variable.", isFatal: true)
+            ? throw new LlmException(
+                $"OpenRouter API key not found: set OpenRouter:ApiKey in appsettings.local.json or the {name} environment variable.",
+                isFatal: true)
             : key.Trim();
     }
 

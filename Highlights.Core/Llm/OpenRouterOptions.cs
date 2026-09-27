@@ -6,7 +6,10 @@ public sealed class OpenRouterOptions
 
     public string BaseUrl { get; set; } = "https://openrouter.ai/api/v1/";
 
-    /// <summary>The API key is read from this environment variable (never stored in project files).</summary>
+    /// <summary>API key; put it only in appsettings.local.json (gitignored). Empty = use the environment variable.</summary>
+    public string? ApiKey { get; set; }
+
+    /// <summary>Fallback when <see cref="ApiKey"/> is empty.</summary>
     public string ApiKeyEnvironmentVariable { get; set; } = "OPENROUTER_API_KEY";
 
     /// <summary>Primary model first, then fallbacks tried when a model fails or returns unusable output.</summary>
