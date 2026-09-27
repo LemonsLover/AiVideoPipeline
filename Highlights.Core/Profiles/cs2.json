@@ -1,0 +1,13 @@
+{
+  "name": "Counter-Strike 2",
+  "context": "Counter-Strike 2 is a 5v5 tactical shooter played in rounds (first to 13 wins). Terrorists plant the bomb, Counter-Terrorists defend or defuse. Typical highlights: clutches (1vX), multi-kills and aces, eco-round upsets, knife kills, ninja defuses, team-kills and flashing teammates, arguing about strats, rage after losing a round. Callouts and CS slang (eco, force-buy, rush B, AWP, smoke, flash, lurk, retake) are normal.",
+  "categories": {
+    "funny": "Jokes, banter, blunders (flashing or killing a teammate, whiffing an easy shot, dying stupidly), trash talk, shared laughter.",
+    "reaction": "Strong emotional reactions: rage, screaming during a clutch, disbelief, explosive celebration.",
+    "epic": "Clutches, multi-kills, aces, insane shots, successful ninja defuses, round wins against the odds. Include the tense build-up, not only the final kill.",
+    "context": "Short beats that help the story: score updates, the start of the decisive round, a map change, the match result. Keep these short (5-15 s)."
+  },
+  "expectedMomentsPerHour": 25,
+  "maxMomentSeconds": 60,
+  "extraInstructions": ""
+}

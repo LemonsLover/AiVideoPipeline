@@ -18,4 +18,9 @@
     <PackageReference Include="Whisper.net.Runtime.Cuda" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Editable without recompiling; copied next to the executable of every app that references Core. -->
+    <Content Include="Profiles\*.json;Prompts\*.md" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

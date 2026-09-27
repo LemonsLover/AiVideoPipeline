@@ -21,6 +21,11 @@ public sealed class HighlightsProject
 
     public Dictionary<string, StageState> Stages { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Every paid LLM call made for this project.</summary>
+    public List<LlmUsageRecord> LlmUsage { get; set; } = [];
+
+    public decimal TotalLlmCostUsd => LlmUsage.Sum(u => u.CostUsd ?? 0);
+
     /// <summary>Project directory; not serialized, set by <see cref="IProjectStore"/>.</summary>
     [JsonIgnore]
     public string Directory { get; set; } = "";
@@ -57,7 +62,13 @@ public sealed class ProjectSettings
     public string? WhisperModel { get; set; }
 
     public string? Language { get; set; }
+
+    /// <summary>Game profile id (file name in the profiles directory, e.g. "bigwalk", "cs2").</summary>
+    public string? Game { get; set; }
 }
+
+public sealed record LlmUsageRecord(
+    string Stage, string Model, int PromptTokens, int CompletionTokens, decimal? CostUsd, DateTimeOffset At);
 
 public enum StageStatus { Pending, Running, Completed, Failed, Cancelled }
 

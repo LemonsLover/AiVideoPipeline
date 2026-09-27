@@ -1,6 +1,7 @@
 using System.Globalization;
 using Highlights.Core.Pipeline;
 using Highlights.Core.Projects;
+using Highlights.Core.Stages.Analysis;
 using Spectre.Console;
 
 namespace Highlights.Cli.Rendering;
@@ -59,6 +60,18 @@ internal static class ProjectView
                 : "[grey]not run[/]";
             AnsiConsole.MarkupLine($"  {Markup.Escape(name),-14} {status}");
         }
+    }
+
+    public static void WriteMoments(MomentsDocument doc)
+    {
+        var table = new Table().Border(TableBorder.Rounded).AddColumns("Id", "Time", "Len", "Category", "Score", "Title");
+        foreach (var m in doc.Moments)
+        {
+            var score = m.Score >= 8 ? $"[green]{m.Score}[/]" : m.Score >= 5 ? $"{m.Score}" : $"[grey]{m.Score}[/]";
+            table.AddRow(m.Id, Duration(m.Start), $"{m.End - m.Start:0}s", Markup.Escape(m.Category), score, Markup.Escape(m.Title));
+        }
+        AnsiConsole.Write(table);
+        AnsiConsole.MarkupLineInterpolated($"[italic]{doc.Summary}[/]");
     }
 
     public static string Duration(double seconds) =>

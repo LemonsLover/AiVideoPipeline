@@ -11,6 +11,11 @@ internal static class CommonArguments
         DefaultValueFactory = _ => ".",
     };
 
+    public static Option<string?> Game() => new("--game", "-g")
+    {
+        Description = "Game profile for this project: bigwalk, cs2, generic, ... (file name in Profiles/, saved)",
+    };
+
     public static Option<bool> Force() => new("--force", "-f")
     {
         Description = "Re-run the stage even if it is up to date",

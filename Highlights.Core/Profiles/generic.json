@@ -1,0 +1,13 @@
+{
+  "name": "A video game",
+  "context": "Friends play a multiplayer game together and talk in voice chat. The game is unknown; infer what happens from the conversation.",
+  "categories": {
+    "funny": "Jokes, banter, absurd or awkward situations, dumb mistakes, shared laughter.",
+    "reaction": "Strong emotional reactions: getting scared, screaming, rage, frustration, explosive joy.",
+    "epic": "Impressive gameplay: great plays, clutch wins, solving something hard, lucky or unlikely outcomes.",
+    "context": "Short story beats that help the video flow: reaching a new place, starting a new round or goal, a key decision. Keep these short (5-15 s) and score them by how much they help the story."
+  },
+  "expectedMomentsPerHour": 20,
+  "maxMomentSeconds": 60,
+  "extraInstructions": ""
+}
