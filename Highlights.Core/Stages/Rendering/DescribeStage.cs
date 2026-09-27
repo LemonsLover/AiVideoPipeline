@@ -33,7 +33,7 @@ public sealed class DescribeStage(
     public string DescribeInputs(HighlightsProject project)
     {
         var id = profiles.ResolveId(project);
-        return string.Join('|', PromptTemplates.FileHash(project.PathOf(ProjectLayout.EditFile)),
+        return string.Join('|', ReviewService.EditHash(project),
             PromptTemplates.FileHash(project.PathOf(ProjectLayout.MomentsFile)), id, PromptTemplates.FileHash(profiles.PathOf(id)),
             templates.HashOf(SystemTemplate), templates.HashOf(UserTemplate), analyze.Value.OutputLanguage,
             render.Value.CrossfadeSeconds, string.Join(',', openRouter.Value.EffectiveModels));

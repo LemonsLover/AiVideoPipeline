@@ -55,6 +55,17 @@ public sealed class ReviewService
         return result;
     }
 
+    /// <summary>Hash of edit.json's clip list only (its createdAt changes on every review run).</summary>
+    public static string EditHash(HighlightsProject project)
+    {
+        var path = project.PathOf(ProjectLayout.EditFile);
+        if (!File.Exists(path))
+            return "";
+        var edit = System.Text.Json.JsonSerializer.Deserialize<EditDocument>(File.ReadAllText(path), JsonDefaults.Options);
+        var clips = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(edit?.Clips ?? [], JsonDefaults.Options);
+        return Convert.ToHexStringLower(SHA256.HashData(clips))[..16];
+    }
+
     public static string MomentsHash(HighlightsProject project)
     {
         var path = project.PathOf(ProjectLayout.MomentsFile);

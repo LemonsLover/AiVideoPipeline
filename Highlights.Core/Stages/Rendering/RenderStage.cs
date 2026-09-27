@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Security.Cryptography;
 using System.Text;
 using Highlights.Core.Configuration;
 using Highlights.Core.Media;
@@ -24,9 +23,7 @@ public sealed class RenderStage(IFfmpegRunner ffmpeg, IOptions<RenderOptions> op
     public string DescribeInputs(HighlightsProject project)
     {
         var o = options.Value;
-        var edit = project.PathOf(ProjectLayout.EditFile);
-        var editHash = File.Exists(edit) ? Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(edit)))[..16] : "";
-        return string.Join('|', editHash, o.Width, o.Height, FrameRate(project), o.CrossfadeSeconds, o.Encoder, o.NvencPreset,
+        return string.Join('|', ReviewService.EditHash(project), o.Width, o.Height, FrameRate(project), o.CrossfadeSeconds, o.Encoder, o.NvencPreset,
             o.NvencCq, o.X264Preset, o.X264Crf, o.AudioBitrate, o.LoudnessLufs, o.TruePeakDb,
             string.Join(',', o.EffectiveAudioTracks), Titles(project), o.TitleSeconds, o.TitleFont, o.TitleFontSize);
     }
