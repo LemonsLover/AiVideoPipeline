@@ -7,7 +7,7 @@ public static class ProjectLayout
     public const string ProjectFile = "project.json";
     public const string AudioFile = "audio.wav";
     public const string TranscriptFile = "transcript.json";
-    public const string LoudnessFile = "loudness.json";
+    public const string SignalsFile = "signals.json";
     public const string MomentsFile = "moments.json";
 
     /// <summary><c>D:\Videos\game.mkv</c> → <c>D:\Videos\game.highlights</c>.</summary>

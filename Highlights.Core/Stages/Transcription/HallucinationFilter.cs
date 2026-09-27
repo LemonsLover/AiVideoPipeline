@@ -1,26 +1,27 @@
 namespace Highlights.Core.Stages.Transcription;
 
 /// <summary>
-/// Drops typical Whisper hallucinations: the same phrase repeated in a loop and known phantom phrases
-/// (subtitle credits and the like) that appear on silence or noise.
+/// Drops typical Whisper hallucinations: phrases looping over recent segments (including alternating
+/// loops like A B A B) and known phantom phrases (subtitle credits and the like) on silence or noise.
 /// </summary>
-internal sealed class HallucinationFilter(int maxConsecutiveRepeats, IReadOnlyList<string> phrases)
+internal sealed class HallucinationFilter(int maxRepeats, IReadOnlyList<string> phrases)
 {
-    private string? _last;
-    private int _repeats;
+    private const int RecentWindow = 6;
+    private readonly Queue<string> _recent = new();
 
     public int Dropped { get; private set; }
 
     public bool ShouldDrop(string text)
     {
         var normalized = Normalize(text);
-        if (normalized == _last)
-            _repeats++;
-        else
-            (_last, _repeats) = (normalized, 1);
+        var repeats = _recent.Count(r => r == normalized);
+
+        _recent.Enqueue(normalized);
+        if (_recent.Count > RecentWindow)
+            _recent.Dequeue();
 
         var drop = normalized.Length == 0
-                   || (maxConsecutiveRepeats > 0 && _repeats > maxConsecutiveRepeats)
+                   || (maxRepeats > 0 && repeats >= maxRepeats)
                    || phrases.Any(p => text.Contains(p, StringComparison.OrdinalIgnoreCase));
         if (drop)
             Dropped++;

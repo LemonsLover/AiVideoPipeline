@@ -57,7 +57,7 @@ internal static class ProjectView
                 : state?.Status == StageStatus.Completed ? "[yellow]outdated[/]"
                 : state?.Status is { } s ? Markup.Escape(s.ToString().ToLowerInvariant())
                 : "[grey]not run[/]";
-            AnsiConsole.MarkupLine($"  {Markup.Escape(name),-12} {status}");
+            AnsiConsole.MarkupLine($"  {Markup.Escape(name),-14} {status}");
         }
     }
 

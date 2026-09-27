@@ -29,7 +29,7 @@ internal static class TracksCommand
 
             ProjectView.WriteSummary(p);
             ProjectView.WriteTracks(p);
-            ProjectView.WriteStages(p, runner, StageNames.Extract, StageNames.Transcribe);
+            ProjectView.WriteStages(p, runner, StageNames.Extract, StageNames.Transcribe, StageNames.AudioSignals);
             return CommandHandler.Ok;
         }));
         return command;

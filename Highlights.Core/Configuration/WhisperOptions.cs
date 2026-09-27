@@ -9,9 +9,6 @@ public sealed class WhisperOptions
     /// <summary>ggml model name (e.g. "large-v3-turbo", "medium") or a path to a .bin file.</summary>
     public string Model { get; set; } = "large-v3-turbo";
 
-    /// <summary>Where downloaded models are stored. Defaults to %LOCALAPPDATA%\Highlights\models.</summary>
-    public string? ModelsDirectory { get; set; }
-
     /// <summary>Base URL the ggml-&lt;model&gt;.bin files are downloaded from.</summary>
     public string ModelBaseUrl { get; set; } = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/";
 
@@ -36,7 +33,7 @@ public sealed class WhisperOptions
     /// </summary>
     public bool NoContext { get; set; } = true;
 
-    /// <summary>A segment repeating the same text more than this many times in a row is dropped.</summary>
+    /// <summary>A segment is dropped when its text already occurs this many times among the last 6 segments.</summary>
     public int MaxConsecutiveRepeats { get; set; } = 2;
 
     /// <summary>Known Whisper hallucinations (subtitle credits etc.); segments containing them are dropped.</summary>
@@ -56,9 +53,4 @@ public sealed class WhisperOptions
 
     public IReadOnlyList<RuntimeLibrary> EffectiveRuntimes =>
         Runtimes is { Length: > 0 } ? Runtimes : [RuntimeLibrary.Cuda, RuntimeLibrary.Cpu];
-
-    public string EffectiveModelsDirectory =>
-        string.IsNullOrWhiteSpace(ModelsDirectory)
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Highlights", "models")
-            : Environment.ExpandEnvironmentVariables(ModelsDirectory);
 }
