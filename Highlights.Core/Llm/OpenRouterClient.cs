@@ -11,7 +11,7 @@ namespace Highlights.Core.Llm;
 
 /// <summary>OpenRouter chat completions (OpenAI-compatible API).</summary>
 public sealed class OpenRouterClient(
-    IHttpClientFactory httpClientFactory, IOptions<OpenRouterOptions> options, ILogger<OpenRouterClient> logger) : ILlmClient
+    IHttpClientFactory httpClientFactory, IOptionsMonitor<OpenRouterOptions> options, ILogger<OpenRouterClient> logger) : ILlmClient
 {
     public const string HttpClientName = "openrouter";
 
@@ -52,7 +52,7 @@ public sealed class OpenRouterClient(
             Content = JsonContent.Create(body),
         };
         message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", GetApiKey());
-        message.Headers.Add("X-Title", options.Value.AppName);
+        message.Headers.Add("X-Title", options.CurrentValue.AppName);
 
         using var http = httpClientFactory.CreateClient(HttpClientName);
         HttpResponseMessage response;
@@ -133,20 +133,24 @@ public sealed class OpenRouterClient(
 
     private string GetApiKey()
     {
-        if (!string.IsNullOrWhiteSpace(options.Value.ApiKey))
-            return options.Value.ApiKey.Trim();
+        var o = options.CurrentValue; // re-read: the key can be added while the desktop app is open
+        return FindApiKey(o) ?? throw new LlmException(
+            $"OpenRouter API key not found: set OpenRouter:ApiKey in {HighlightsConfiguration.UserSettingsPath} or the {o.ApiKeyEnvironmentVariable} environment variable.",
+            isFatal: true);
+    }
 
-        var name = options.Value.ApiKeyEnvironmentVariable;
+    /// <summary>The configured key: OpenRouter:ApiKey, else the environment variable (process, user, machine).</summary>
+    public static string? FindApiKey(OpenRouterOptions o)
+    {
+        if (!string.IsNullOrWhiteSpace(o.ApiKey))
+            return o.ApiKey.Trim();
+        var name = o.ApiKeyEnvironmentVariable;
         var key = Environment.GetEnvironmentVariable(name)
                   ?? (OperatingSystem.IsWindows()
                       ? Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.User)
                         ?? Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.Machine)
                       : null);
-        return string.IsNullOrWhiteSpace(key)
-            ? throw new LlmException(
-                $"OpenRouter API key not found: set OpenRouter:ApiKey in {HighlightsConfiguration.UserSettingsPath} or the {name} environment variable.",
-                isFatal: true)
-            : key.Trim();
+        return string.IsNullOrWhiteSpace(key) ? null : key.Trim();
     }
 
     private static string ErrorMessage(string body)

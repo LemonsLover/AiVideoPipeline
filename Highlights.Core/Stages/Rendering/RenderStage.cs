@@ -23,9 +23,10 @@ public sealed class RenderStage(IFfmpegRunner ffmpeg, IOptions<RenderOptions> op
     public string DescribeInputs(HighlightsProject project)
     {
         var o = options.Value;
-        return string.Join('|', ReviewService.EditHash(project), o.Width, o.Height, FrameRate(project), o.CrossfadeSeconds, o.Encoder, o.NvencPreset,
-            o.NvencCq, o.X264Preset, o.X264Crf, o.AudioBitrate, o.LoudnessLufs, o.TruePeakDb,
-            string.Join(',', o.EffectiveAudioTracks), Titles(project), o.TitleSeconds, o.TitleFont, o.TitleFontSize);
+        return string.Join('|', ReviewService.EditHash(project), o.Width, o.Height, FrameRate(project), o.CrossfadeSeconds,
+            o.InnerCrossfadeSeconds, o.Encoder, o.NvencPreset, o.NvencCq, o.X264Preset, o.X264Crf, o.AudioBitrate, o.LoudnessLufs,
+            o.TruePeakDb, string.Join(',', o.EffectiveAudioTracks), Titles(project), o.TitleSeconds, o.TitleFont, o.TitleFontSize,
+            o.CaptionSeconds, o.CaptionFontSize);
     }
 
     public async Task<IReadOnlyDictionary<string, string>> RunAsync(
@@ -33,7 +34,7 @@ public sealed class RenderStage(IFfmpegRunner ffmpeg, IOptions<RenderOptions> op
     {
         var o = options.Value;
         var edit = await JsonDefaults.ReadAsync<EditDocument>(project.PathOf(ProjectLayout.EditFile), cancellationToken);
-        var plan = RenderPlan.Create(edit.Clips, o.CrossfadeSeconds);
+        var plan = RenderPlan.Create(edit.Clips, o.CrossfadeSeconds, o.InnerCrossfadeSeconds);
         var trackCount = project.Media?.AudioTracks.Count ?? 0;
         var missing = o.EffectiveAudioTracks.Where(t => t < 0 || t >= trackCount).ToList();
         if (missing.Count > 0)
@@ -52,23 +53,28 @@ public sealed class RenderStage(IFfmpegRunner ffmpeg, IOptions<RenderOptions> op
             // Captions and the font are referenced by relative paths (ffmpeg runs in the work directory),
             // which avoids escaping drive-letter colons inside the filtergraph.
             var titles = Titles(project);
-            string? font = null;
             var titleFiles = new string?[plan.Clips.Count];
-            if (titles)
+            var captionFiles = new string?[plan.Clips.Count];
+            for (var i = 0; i < plan.Clips.Count; i++)
+            {
+                if (titles)
+                    titleFiles[i] = await WriteTextAsync(work, $"title{i:000}.txt", plan.Clips[i].Title, cancellationToken);
+                if (plan.Clips[i].Caption is { Length: > 0 } caption)
+                    captionFiles[i] = await WriteTextAsync(work, $"caption{i:000}.txt", caption, cancellationToken);
+            }
+
+            string? font = null;
+            if (titleFiles.Any(f => f is not null) || captionFiles.Any(f => f is not null))
             {
                 if (!File.Exists(o.TitleFont))
-                    throw new PipelineException($"Title font not found: {o.TitleFont} (Render:TitleFont).");
+                    throw new PipelineException($"Caption font not found: {o.TitleFont} (Render:TitleFont).");
                 font = "font" + Path.GetExtension(o.TitleFont);
                 File.Copy(o.TitleFont, Path.Combine(work, font));
-                for (var i = 0; i < plan.Clips.Count; i++)
-                {
-                    titleFiles[i] = $"title{i:000}.txt";
-                    await File.WriteAllTextAsync(Path.Combine(work, titleFiles[i]!), plan.Clips[i].Title, new UTF8Encoding(false), cancellationToken);
-                }
             }
 
             var graph = FilterGraphBuilder.Build(plan, new FilterGraphBuilder.Settings(
-                o.Width, o.Height, FrameRate(project), o.EffectiveAudioTracks, titleFiles, font, o.TitleFontSize, o.TitleSeconds));
+                o.Width, o.Height, FrameRate(project), o.EffectiveAudioTracks, titleFiles, captionFiles, font,
+                o.TitleFontSize, o.TitleSeconds, o.CaptionFontSize, o.CaptionSeconds));
             await File.WriteAllTextAsync(Path.Combine(work, "filter.txt"), graph, new UTF8Encoding(false), cancellationToken);
             await File.WriteAllTextAsync(Path.Combine(work, "chapters.txt"), ChaptersMetadata(plan), new UTF8Encoding(false), cancellationToken);
 
@@ -78,7 +84,7 @@ public sealed class RenderStage(IFfmpegRunner ffmpeg, IOptions<RenderOptions> op
             var video = project.ResolveVideoPath();
             var args = new List<string> { "-y" };
             foreach (var clip in plan.Clips)
-                args.AddRange(["-ss", F(clip.Start), "-t", F(clip.Duration), "-i", video]);
+                args.AddRange(["-ss", F(clip.Start), "-t", F(clip.End - clip.Start), "-i", video]);
             args.AddRange(["-f", "ffmetadata", "-i", "chapters.txt"]);
             args.AddRange(["-/filter_complex", "filter.txt",
                 "-map", $"[{FilterGraphBuilder.VideoOut}]", "-map", $"[{FilterGraphBuilder.AudioOut}]",
@@ -178,13 +184,53 @@ public sealed class RenderStage(IFfmpegRunner ffmpeg, IOptions<RenderOptions> op
             .Replace("\\", "\\\\").Replace("=", "\\=").Replace(";", "\\;").Replace("#", "\\#").Replace("\n", " ").ToString();
 
         var sb = new StringBuilder(";FFMETADATA1\n");
+        var starts = plan.ClipStarts;
         for (var i = 0; i < plan.Clips.Count; i++)
         {
-            var start = (long)(plan.OutputStarts[i] * 1000);
-            var end = (long)((i + 1 < plan.Clips.Count ? plan.OutputStarts[i + 1] : plan.TotalSeconds) * 1000);
+            var start = (long)(starts[i] * 1000);
+            var end = (long)((i + 1 < plan.Clips.Count ? starts[i + 1] : plan.TotalSeconds) * 1000);
             sb.Append("[CHAPTER]\nTIMEBASE=1/1000\n")
               .Append(CultureInfo.InvariantCulture, $"START={start}\nEND={end}\n")
               .Append("title=").Append(Escape(plan.Clips[i].Title)).Append('\n');
+        }
+        return sb.ToString();
+    }
+
+    private static async Task<string> WriteTextAsync(string directory, string name, string text, CancellationToken cancellationToken)
+    {
+        await File.WriteAllTextAsync(Path.Combine(directory, name), Wrap(text, MaxLineChars), new UTF8Encoding(false), cancellationToken);
+        return name;
+    }
+
+    /// <summary>drawtext doesn't wrap: ~55 characters of 44 px bold text is about 2/3 of a 1080p frame.</summary>
+    private const int MaxLineChars = 55;
+
+    /// <summary>Breaks text into lines of at most <paramref name="max"/> characters at word boundaries, balancing two lines.</summary>
+    internal static string Wrap(string text, int max)
+    {
+        text = text.Trim();
+        if (text.Length <= max)
+            return text;
+        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        // Aim for lines of similar length rather than a long first line and a stub.
+        var lines = (int)Math.Ceiling(text.Length / (double)max);
+        var target = Math.Min(max, (int)Math.Ceiling(text.Length / (double)lines) + 4);
+        var sb = new StringBuilder();
+        var line = 0;
+        foreach (var word in words)
+        {
+            if (line > 0 && line + 1 + word.Length > target)
+            {
+                sb.Append('\n');
+                line = 0;
+            }
+            else if (line > 0)
+            {
+                sb.Append(' ');
+                line++;
+            }
+            sb.Append(word);
+            line += word.Length;
         }
         return sb.ToString();
     }

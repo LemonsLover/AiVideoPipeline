@@ -8,12 +8,19 @@ using Highlights.Core;
 using Highlights.Core.Pipeline;
 using Highlights.Core.Projects;
 using Highlights.Core.Stages.Analysis;
+using Highlights.Core.Stages.Planning;
 using Highlights.Core.Stages.Postprocessing;
 using Highlights.Core.Stages.Review;
 
 namespace AiVideoPipeline.ViewModels;
 
 public sealed record LogEntry(DateTime Time, string Text, bool IsError);
+
+/// <remarks>ToString is what the ComboBox selection box shows.</remarks>
+public sealed record ModeOption(string Id, string Name, string Description)
+{
+    public override string ToString() => Name;
+}
 
 /// <remarks>ToString is what the ComboBox selection box shows.</remarks>
 public sealed record TrackOption(int Index, string Label)
@@ -26,7 +33,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly IProjectStore _store;
     private readonly PipelineRunner _runner;
     private readonly ReviewService _reviews;
-    private readonly GameProfileStore _profiles;
+    private readonly EditModeStore _modes;
     private readonly IDialogService _dialogs;
 
     private CancellationTokenSource? _cts;
@@ -35,13 +42,13 @@ public sealed partial class MainViewModel : ObservableObject
     private bool _loadingSettings;
     private readonly HashSet<string> _startedStages = [];
 
-    public MainViewModel(IProjectStore store, PipelineRunner runner, ReviewService reviews, GameProfileStore profiles,
-        IDialogService dialogs, PlayerService player)
+    public MainViewModel(IProjectStore store, PipelineRunner runner, ReviewService reviews, EditModeStore modes,
+        IDialogService dialogs, PlayerService player, EnvironmentCheck environment)
     {
         _store = store;
         _runner = runner;
         _reviews = reviews;
-        _profiles = profiles;
+        _modes = modes;
         _dialogs = dialogs;
         Player = player;
 
@@ -50,13 +57,20 @@ public sealed partial class MainViewModel : ObservableObject
             new(StageNames.Extract, "Extract voice", false),
             new(StageNames.Transcribe, "Transcribe", false),
             new(StageNames.AudioSignals, "Audio signals", false),
-            new(StageNames.Analyze, "Find moments (LLM)", true),
+            new(StageNames.Analyze, "Map the session (LLM)", true),
+            new(StageNames.Plan, "Plan the cut (LLM)", true),
             new(StageNames.Postprocess, "Build clips", false),
             new(StageNames.Review, "Apply review", false),
             new(StageNames.Render, "Render video", false),
             new(StageNames.Describe, "YouTube text (LLM)", true),
         ];
-        Games = [.. _profiles.List()];
+        var checks = environment.Run();
+        foreach (var check in checks)
+            AddLog(check.Text, isError: !check.Ok);
+        if (checks.FirstOrDefault(c => !c.Ok) is { } problem)
+            StatusText = $"Setup problem: {problem.Text}";
+
+        Modes = [.. _modes.List().Select(id => { var m = _modes.Load(id); return new ModeOption(id, m.Name, m.Description); })];
     }
 
     public PlayerService Player { get; }
@@ -64,7 +78,7 @@ public sealed partial class MainViewModel : ObservableObject
     public ObservableCollection<ClipViewModel> Clips { get; } = [];
     public ObservableCollection<LogEntry> Log { get; } = [];
     public ObservableCollection<TrackOption> Tracks { get; } = [];
-    public IReadOnlyList<string> Games { get; }
+    public IReadOnlyList<ModeOption> Modes { get; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsProjectOpen), nameof(WindowTitle), nameof(ProjectInfo))]
@@ -108,10 +122,10 @@ public sealed partial class MainViewModel : ObservableObject
     public partial TrackOption? SelectedTrack { get; set; }
 
     [ObservableProperty]
-    public partial string? SelectedGame { get; set; }
+    public partial ModeOption? SelectedMode { get; set; }
 
     [ObservableProperty]
-    public partial int MinScore { get; set; } = 6;
+    public partial bool ContextCaptions { get; set; } = true;
 
     /// <summary>0 = no target, every moment above the threshold.</summary>
     [ObservableProperty]
@@ -121,8 +135,8 @@ public sealed partial class MainViewModel : ObservableObject
     public partial bool Titles { get; set; }
 
     partial void OnSelectedTrackChanged(TrackOption? value) => SaveSettings(p => p.Settings.AudioTrack = value?.Index);
-    partial void OnSelectedGameChanged(string? value) => SaveSettings(p => p.Settings.Game = value);
-    partial void OnMinScoreChanged(int value) => SaveSettings(p => p.Settings.MinScore = Math.Clamp(value, 0, 10));
+    partial void OnSelectedModeChanged(ModeOption? value) => SaveSettings(p => p.Settings.Mode = value?.Id);
+    partial void OnContextCaptionsChanged(bool value) => SaveSettings(p => p.Settings.ContextCaptions = value);
     partial void OnTargetMinutesChanged(double value) => SaveSettings(p => p.Settings.TargetMinutes = Math.Max(0, value));
     partial void OnTitlesChanged(bool value) => SaveSettings(p => p.Settings.Titles = value);
 
@@ -189,8 +203,9 @@ public sealed partial class MainViewModel : ObservableObject
                 Tracks.Add(new TrackOption(t.Index,
                     $"#{t.Index} {t.Title ?? "(no title)"} · {t.Codec} {t.ChannelLayout ?? $"{t.Channels}ch"}{(t.Language is null ? "" : $" · {t.Language}")}"));
             SelectedTrack = Tracks.FirstOrDefault(t => t.Index == p.Settings.AudioTrack);
-            SelectedGame = _profiles.ResolveId(p);
-            MinScore = p.Settings.MinScore ?? 6;
+            var modeId = _modes.ResolveId(p);
+            SelectedMode = Modes.FirstOrDefault(m => m.Id == modeId);
+            ContextCaptions = p.Settings.ContextCaptions ?? (SelectedMode is null || _modes.Load(modeId).ContextCaptions);
             TargetMinutes = p.Settings.TargetMinutes ?? 0;
             Titles = p.Settings.Titles ?? false;
         }
@@ -350,8 +365,10 @@ public sealed partial class MainViewModel : ObservableObject
         {
             StageNames.Transcribe => $"{V("segments")} segments · {V("language")} · {V("runtime")}",
             StageNames.AudioSignals => string.Join(" · ", d.Where(x => x.Key.StartsWith("events.")).Select(x => $"{x.Value} {x.Key[7..]}")),
-            StageNames.Analyze => $"{V("moments")} moments · {V("model")}",
-            StageNames.Postprocess or StageNames.Review => $"{V("clips")} clips · {Format(double.Parse(V("totalSeconds") ?? "0", CultureInfo.InvariantCulture))}",
+            StageNames.Analyze => $"{V("moments")} beats · {V("game")}",
+            StageNames.Plan => $"{V("mode")} · {V("clips")} clips · {Format(double.Parse(V("plannedSeconds") ?? "0", CultureInfo.InvariantCulture))} · {V("captions")} captions",
+            StageNames.Postprocess => $"{V("clips")} clips · {V("segments")} pieces · {Format(double.Parse(V("totalSeconds") ?? "0", CultureInfo.InvariantCulture))}",
+            StageNames.Review => $"{V("clips")} clips · {Format(double.Parse(V("totalSeconds") ?? "0", CultureInfo.InvariantCulture))}",
             StageNames.Render => $"{Format(double.Parse(V("durationSeconds") ?? "0", CultureInfo.InvariantCulture))} · {V("encoder")} · {V("loudness")}",
             StageNames.Describe => $"{V("chapters")} chapters",
             _ => null,
@@ -407,7 +424,7 @@ public sealed partial class MainViewModel : ObservableObject
         ClipsSummary = Clips.Count > 0
             ? $"{included.Count} of {Clips.Count} clips · {Format(included.Sum(c => c.Duration))}"
             : Project is not null && File.Exists(Project.PathOf(ProjectLayout.ClipsFile))
-                ? $"No moment scored {MinScore}+ — lower \"Min score\"."
+                ? "The plan has no clips — try another mode or target."
                 : "No clips yet — run \"Build clips\".";
     }
 
@@ -462,7 +479,7 @@ public sealed partial class MainViewModel : ObservableObject
     private void PlayClip()
     {
         if (SelectedClip is { } c)
-            Player.PlayRange(c.Start, c.End);
+            Player.PlaySegments(c.Final.Segments.Select(r => (r.Start, r.End)).ToList());
     }
 
     /// <summary>Parameter "start:-1", "end:+0.2", …</summary>

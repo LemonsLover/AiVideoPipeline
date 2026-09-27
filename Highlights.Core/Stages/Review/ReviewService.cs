@@ -9,7 +9,7 @@ public sealed class ReviewService
 {
     public const double MinClipSeconds = 1;
 
-    public static string KeyOf(Clip clip) => clip.MomentIds[0];
+    public static string KeyOf(Clip clip) => clip.Key;
 
     public async Task<ReviewDocument> LoadAsync(HighlightsProject project, CancellationToken cancellationToken = default)
     {
@@ -36,23 +36,31 @@ public sealed class ReviewService
         foreach (var clip in clips)
         {
             var edit = review.Clips.GetValueOrDefault(KeyOf(clip)) ?? new ClipEdit();
-            Clip? final = null;
-            if (edit.Included)
-            {
-                var start = Math.Clamp(clip.Start + edit.StartOffset, 0, videoDuration);
-                var end = Math.Clamp(clip.End + edit.EndOffset, 0, videoDuration);
-                if (end - start < MinClipSeconds)
-                    end = Math.Min(videoDuration, start + MinClipSeconds);
-                final = clip with
-                {
-                    Start = Math.Round(start, 2),
-                    End = Math.Round(end, 2),
-                    Title = string.IsNullOrWhiteSpace(edit.Title) ? clip.Title : edit.Title.Trim(),
-                };
-            }
-            result.Add((clip, edit, final));
+            result.Add((clip, edit, edit.Included ? ApplyEdit(clip, edit, videoDuration) : null));
         }
         return result;
+    }
+
+    /// <summary>Start/end offsets move the outer edges, i.e. the first segment's start and the last segment's end.</summary>
+    public static Clip ApplyEdit(Clip clip, ClipEdit edit, double videoDuration)
+    {
+        var segments = clip.Segments.ToList();
+        var first = segments[0];
+        var start = Math.Clamp(first.Start + edit.StartOffset, 0, first.End - MinClipSeconds);
+        segments[0] = new TimeRange(Math.Round(start, 2), first.End);
+
+        var last = segments[^1];
+        var end = Math.Clamp(last.End + edit.EndOffset, last.Start + MinClipSeconds, videoDuration);
+        segments[^1] = new TimeRange(last.Start, Math.Round(end, 2));
+
+        return clip with
+        {
+            Start = segments[0].Start,
+            End = segments[^1].End,
+            Segments = segments,
+            Title = string.IsNullOrWhiteSpace(edit.Title) ? clip.Title : edit.Title.Trim(),
+            Caption = edit.Caption is null ? clip.Caption : edit.Caption.Trim() is { Length: > 0 } c ? c : null,
+        };
     }
 
     /// <summary>Hash of edit.json's clip list only (its createdAt changes on every review run).</summary>
@@ -61,9 +69,16 @@ public sealed class ReviewService
         var path = project.PathOf(ProjectLayout.EditFile);
         if (!File.Exists(path))
             return "";
-        var edit = System.Text.Json.JsonSerializer.Deserialize<EditDocument>(File.ReadAllText(path), JsonDefaults.Options);
-        var clips = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(edit?.Clips ?? [], JsonDefaults.Options);
-        return Convert.ToHexStringLower(SHA256.HashData(clips))[..16];
+        try
+        {
+            var edit = System.Text.Json.JsonSerializer.Deserialize<EditDocument>(File.ReadAllText(path), JsonDefaults.Options);
+            var clips = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(edit?.Clips ?? [], JsonDefaults.Options);
+            return Convert.ToHexStringLower(SHA256.HashData(clips))[..16];
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return "unreadable"; // older format: the review stage will rewrite it
+        }
     }
 
     public static string MomentsHash(HighlightsProject project)

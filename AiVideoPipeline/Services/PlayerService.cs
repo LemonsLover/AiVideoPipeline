@@ -61,6 +61,7 @@ public sealed partial class PlayerService : ObservableObject, IDisposable
         Player.Media = media;
         LoadedPath = path;
         _stopAt = null;
+        _queue.Clear();
         // VLC reports the length and shows a frame only once playback starts: play muted, pause on the first
         // "Playing" event. VLC events arrive on its own thread and must not call back into VLC synchronously.
         Player.Mute = true;
@@ -91,6 +92,7 @@ public sealed partial class PlayerService : ObservableObject, IDisposable
         if (Player.Media is null)
             return;
         _stopAt = null;
+        _queue.Clear();
         if (Player.IsPlaying)
             Player.SetPause(true);
         else if (Player.State == VLCState.Ended)
@@ -111,15 +113,24 @@ public sealed partial class PlayerService : ObservableObject, IDisposable
     }
 
     /// <summary>Plays [start, end) and pauses at the end.</summary>
-    public void PlayRange(double start, double end)
+    public void PlayRange(double start, double end) => PlaySegments([(start, end)]);
+
+    /// <summary>
+    /// Plays the ranges one after another, jumping over the gaps (how a clip with cut-out pauses will look), and
+    /// pauses after the last one.
+    /// </summary>
+    public void PlaySegments(IReadOnlyList<(double Start, double End)> segments)
     {
-        if (Player.Media is null)
+        if (Player.Media is null || segments.Count == 0)
             return;
+        _queue = new Queue<(double, double)>(segments.Skip(1));
         if (!Player.IsPlaying)
             Player.Play();
-        Seek(start);
-        _stopAt = end;
+        Seek(segments[0].Start);
+        _stopAt = segments[0].End;
     }
+
+    private Queue<(double Start, double End)> _queue = new();
 
     private void Poll()
     {
@@ -132,8 +143,16 @@ public sealed partial class PlayerService : ObservableObject, IDisposable
         Time = Math.Max(0, Player.Time / 1000.0);
         if (_stopAt is { } stop && Time >= stop)
         {
-            _stopAt = null;
-            Player.SetPause(true);
+            if (_queue.TryDequeue(out var next))
+            {
+                Seek(next.Start);
+                _stopAt = next.End;
+            }
+            else
+            {
+                _stopAt = null;
+                Player.SetPause(true);
+            }
         }
     }
 

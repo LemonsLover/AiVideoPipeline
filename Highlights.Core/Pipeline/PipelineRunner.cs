@@ -39,9 +39,9 @@ public sealed class PipelineRunner(IEnumerable<IPipelineStage> stages, IProjectS
             return state.InputsHash == ComputeInputsHash(project, stage)
                    && stage.DependsOn.All(d => IsUpToDate(project, GetStage(d)));
         }
-        catch (PipelineException)
+        catch (Exception ex) when (ex is PipelineException or System.Text.Json.JsonException or IOException)
         {
-            return false;
+            return false; // inputs can't be described (missing/old-format artifact): treat as out of date
         }
     }
 
@@ -49,11 +49,18 @@ public sealed class PipelineRunner(IEnumerable<IPipelineStage> stages, IProjectS
         HighlightsProject project, string stageName, bool force,
         IProgress<StageProgress>? progress = null, CancellationToken cancellationToken = default)
     {
-        progress ??= new Progress<StageProgress>();
+        using var projectLock = ProjectLock.Acquire(project.Directory);
+        return await RunUnlockedAsync(project, stageName, force, progress ?? new Progress<StageProgress>(), cancellationToken);
+    }
+
+    private async Task<StageOutcome> RunUnlockedAsync(
+        HighlightsProject project, string stageName, bool force, IProgress<StageProgress> progress,
+        CancellationToken cancellationToken)
+    {
         var stage = GetStage(stageName);
 
         foreach (var dep in stage.DependsOn)
-            await RunAsync(project, dep, force: false, progress, cancellationToken);
+            await RunUnlockedAsync(project, dep, force: false, progress, cancellationToken);
 
         if (!force && IsUpToDate(project, stage))
         {

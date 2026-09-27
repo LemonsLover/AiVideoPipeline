@@ -3,8 +3,8 @@ using Highlights.Core.Stages.Postprocessing;
 namespace Highlights.Core.Stages.Review;
 
 /// <summary>
-/// Contents of review.json: the user's edits to the planned clips. Edits are keyed by the clip's first moment id,
-/// so they survive re-running postprocess (padding/threshold changes); they're ignored when moments.json changes.
+/// Contents of review.json: the user's edits to the planned clips. Edits are keyed by Clip.Key (the clip's first beat id),
+/// so they survive re-running the plan or postprocess; they're ignored when moments.json changes.
 /// </summary>
 public sealed class ReviewDocument
 {
@@ -28,8 +28,11 @@ public sealed class ClipEdit
     /// <summary>Replacement title (captions, chapters).</summary>
     public string? Title { get; set; }
 
+    /// <summary>Replacement context caption; "" removes the planned one, null keeps it.</summary>
+    public string? Caption { get; set; }
+
     [System.Text.Json.Serialization.JsonIgnore]
-    public bool IsDefault => Included && StartOffset == 0 && EndOffset == 0 && Title is null;
+    public bool IsDefault => Included && StartOffset == 0 && EndOffset == 0 && Title is null && Caption is null;
 }
 
 /// <summary>Contents of edit.json: the final clip list that gets rendered.</summary>

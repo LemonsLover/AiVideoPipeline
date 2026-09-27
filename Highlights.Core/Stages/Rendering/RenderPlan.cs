@@ -2,20 +2,38 @@ using Highlights.Core.Stages.Postprocessing;
 
 namespace Highlights.Core.Stages.Rendering;
 
-/// <summary>Where each clip lands in the output video once crossfades overlap neighbouring clips.</summary>
-public sealed record RenderPlan(IReadOnlyList<Clip> Clips, double Crossfade, IReadOnlyList<double> OutputStarts, double TotalSeconds)
+/// <summary>One continuous piece of source video in the output (a clip segment).</summary>
+/// <param name="FadeIn">Crossfade with the previous piece (0 for the first piece).</param>
+public sealed record RenderPiece(int ClipIndex, int SegmentIndex, TimeRange Source, double FadeIn, double OutputStart);
+
+/// <summary>
+/// Where every clip segment lands in the output. Segments of one clip are joined with a short crossfade
+/// (jump cut), clips with a longer one; each fade overlaps the neighbouring pieces.
+/// </summary>
+public sealed record RenderPlan(IReadOnlyList<Clip> Clips, IReadOnlyList<RenderPiece> Pieces, double TotalSeconds)
 {
-    public static RenderPlan Create(IReadOnlyList<Clip> clips, double crossfade)
+    /// <summary>Output time where each clip starts (chapters).</summary>
+    public IReadOnlyList<double> ClipStarts => Clips.Select((_, i) => Pieces.First(p => p.ClipIndex == i).OutputStart).ToList();
+
+    public static RenderPlan Create(IReadOnlyList<Clip> clips, double clipCrossfade, double innerCrossfade)
     {
-        // A fade can't be longer than half of the shortest clip (it overlaps both of its ends).
-        var fade = clips.Count < 2 ? 0 : Math.Max(0, Math.Min(crossfade, clips.Min(c => c.Duration) / 2));
-        var starts = new List<double>();
+        var pieces = new List<RenderPiece>();
         var t = 0.0;
-        foreach (var clip in clips)
+        TimeRange? previous = null;
+        for (var c = 0; c < clips.Count; c++)
         {
-            starts.Add(Math.Round(t, 3));
-            t += clip.Duration - fade;
+            for (var s = 0; s < clips[c].Segments.Count; s++)
+            {
+                var source = clips[c].Segments[s];
+                var wanted = previous is null ? 0 : s == 0 ? clipCrossfade : innerCrossfade;
+                // A fade can't be longer than half of either piece it overlaps.
+                var fade = previous is null ? 0 : Math.Round(Math.Max(0, Math.Min(wanted, Math.Min(previous.Duration, source.Duration) / 2)), 3);
+                t -= fade;
+                pieces.Add(new RenderPiece(c, s, source, fade, Math.Round(t, 3)));
+                t += source.Duration;
+                previous = source;
+            }
         }
-        return new RenderPlan(clips, fade, starts, Math.Round(t + fade, 3));
+        return new RenderPlan(clips, pieces, Math.Round(t, 3));
     }
 }

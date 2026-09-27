@@ -6,6 +6,7 @@ using Highlights.Core.Pipeline;
 using Highlights.Core.Projects;
 using Highlights.Core.Stages;
 using Highlights.Core.Stages.Analysis;
+using Highlights.Core.Stages.Planning;
 using Highlights.Core.Stages.Postprocessing;
 using Highlights.Core.Stages.Rendering;
 using Highlights.Core.Stages.Review;
@@ -31,6 +32,7 @@ public static class ServiceCollectionExtensions
         services.Configure<RenderOptions>(configuration.GetSection(RenderOptions.SectionName));
 
         services.AddSingleton<ToolLocator>();
+        services.AddSingleton<EnvironmentCheck>();
         services.AddSingleton<IMediaProbe, MediaProbe>();
         services.AddSingleton<IFfmpegRunner, FfmpegRunner>();
         services.AddSingleton<IProjectStore, ProjectStore>();
@@ -48,13 +50,14 @@ public static class ServiceCollectionExtensions
         });
         services.AddSingleton<ILlmClient, OpenRouterClient>();
         services.AddSingleton<StructuredLlm>();
-        services.AddSingleton<GameProfileStore>();
+        services.AddSingleton<EditModeStore>();
         services.AddSingleton<PromptTemplates>();
 
         services.AddSingleton<IPipelineStage, ExtractStage>();
         services.AddSingleton<IPipelineStage, TranscribeStage>();
         services.AddSingleton<IPipelineStage, AudioSignalsStage>();
         services.AddSingleton<IPipelineStage, AnalyzeStage>();
+        services.AddSingleton<IPipelineStage, PlanStage>();
         services.AddSingleton<IPipelineStage, PostprocessStage>();
         services.AddSingleton<ReviewService>();
         services.AddSingleton<IPipelineStage, ReviewStage>();

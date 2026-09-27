@@ -6,6 +6,7 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>HighlightsStudio</AssemblyName>
     <PlatformTarget>x64</PlatformTarget>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,6 +18,12 @@
     <PackageReference Include="LibVLCSharp.WPF" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="VideoLAN.LibVLC.Windows" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Window/taskbar icon; icon-source.png is the original artwork the .ico was cut from. -->
+    <Resource Include="Assets\app.ico" />
+    <None Include="Assets\icon-source.png;Assets\app.png" />
   </ItemGroup>
 
 </Project>

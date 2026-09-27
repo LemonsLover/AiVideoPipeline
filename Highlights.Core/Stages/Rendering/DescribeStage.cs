@@ -6,6 +6,7 @@ using Highlights.Core.Llm;
 using Highlights.Core.Pipeline;
 using Highlights.Core.Projects;
 using Highlights.Core.Stages.Analysis;
+using Highlights.Core.Stages.Planning;
 using Highlights.Core.Stages.Review;
 using Microsoft.Extensions.Options;
 
@@ -16,7 +17,7 @@ namespace Highlights.Core.Stages.Rendering;
 /// (with crossfades, so they match highlights.mp4).
 /// </summary>
 public sealed class DescribeStage(
-    StructuredLlm llm, GameProfileStore profiles, PromptTemplates templates, IOptions<AnalyzeOptions> analyze,
+    StructuredLlm llm, EditModeStore modes, PromptTemplates templates, IOptions<AnalyzeOptions> analyze,
     IOptions<RenderOptions> render, IOptions<OpenRouterOptions> openRouter) : IPipelineStage
 {
     private const string SystemTemplate = "describe.system.md";
@@ -32,11 +33,10 @@ public sealed class DescribeStage(
 
     public string DescribeInputs(HighlightsProject project)
     {
-        var id = profiles.ResolveId(project);
         return string.Join('|', ReviewService.EditHash(project),
-            PromptTemplates.FileHash(project.PathOf(ProjectLayout.MomentsFile)), id, PromptTemplates.FileHash(profiles.PathOf(id)),
+            PromptTemplates.FileHash(project.PathOf(ProjectLayout.MomentsFile)), modes.ResolveId(project),
             templates.HashOf(SystemTemplate), templates.HashOf(UserTemplate), analyze.Value.OutputLanguage,
-            render.Value.CrossfadeSeconds, string.Join(',', openRouter.Value.EffectiveModels));
+            render.Value.CrossfadeSeconds, render.Value.InnerCrossfadeSeconds, string.Join(',', openRouter.Value.EffectiveModels));
     }
 
     public async Task<IReadOnlyDictionary<string, string>> RunAsync(
@@ -45,13 +45,15 @@ public sealed class DescribeStage(
         var edit = await JsonDefaults.ReadAsync<EditDocument>(project.PathOf(ProjectLayout.EditFile), cancellationToken);
         var moments = await JsonDefaults.ReadAsync<MomentsDocument>(project.PathOf(ProjectLayout.MomentsFile), cancellationToken);
         var byId = moments.Moments.ToDictionary(m => m.Id);
-        var profile = profiles.Load(profiles.ResolveId(project));
-        var plan = RenderPlan.Create(edit.Clips, render.Value.CrossfadeSeconds);
+        var mode = modes.Load(modes.ResolveId(project));
+        var plan = RenderPlan.Create(edit.Clips, render.Value.CrossfadeSeconds, render.Value.InnerCrossfadeSeconds);
 
         var clipList = new StringBuilder();
         foreach (var clip in edit.Clips)
         {
             clipList.Append("- ").Append(clip.Title);
+            if (clip.Caption is { Length: > 0 } caption)
+                clipList.Append(" [").Append(caption).Append(']');
             foreach (var id in clip.MomentIds)
                 if (byId.TryGetValue(id, out var m))
                     clipList.Append(" — ").Append(m.Description);
@@ -60,7 +62,8 @@ public sealed class DescribeStage(
 
         var values = new Dictionary<string, string>
         {
-            ["game_name"] = profile.Name,
+            ["game_name"] = string.IsNullOrWhiteSpace(moments.Game) ? "a video game" : moments.Game,
+            ["mode_name"] = mode.Name,
             ["output_language"] = analyze.Value.OutputLanguage,
             ["session_summary"] = moments.Summary,
             ["clips"] = clipList.ToString(),
@@ -94,12 +97,13 @@ public sealed class DescribeStage(
     internal static IReadOnlyList<(double Start, string Title)> Chapters(RenderPlan plan)
     {
         var chapters = new List<(double Start, string Title)>();
+        var starts = plan.ClipStarts;
         for (var i = 0; i < plan.Clips.Count; i++)
         {
-            var end = i + 1 < plan.Clips.Count ? plan.OutputStarts[i + 1] : plan.TotalSeconds;
-            if (chapters.Count > 0 && end - plan.OutputStarts[i] < MinChapterSeconds)
+            var end = i + 1 < plan.Clips.Count ? starts[i + 1] : plan.TotalSeconds;
+            if (chapters.Count > 0 && end - starts[i] < MinChapterSeconds)
                 continue;
-            chapters.Add((chapters.Count == 0 ? 0 : plan.OutputStarts[i], plan.Clips[i].Title));
+            chapters.Add((chapters.Count == 0 ? 0 : starts[i], plan.Clips[i].Title));
         }
         return chapters.Count >= MinChapters ? chapters : [];
     }

@@ -1,0 +1,14 @@
+{
+  "name": "Story",
+  "description": "A coherent retelling of the session: key beats in order, with enough setup to follow what's going on.",
+  "instructions": "Tell the story of the session so that a viewer who wasn't there can follow it from beginning to end.\n- Build an arc: where the group starts, what they are trying to do, the problems they run into, the attempts, the turning points, and how it ends. The viewer must always know what the group is currently trying to do and why it matters.\n- Every clip should connect to the previous one. When time passes or the situation changes between clips, bridge it with a caption (\"Twenty minutes and many wrong buttons later…\") or with a short setup clip.\n- Before a payoff (a solved puzzle, a big fail, a punchline) include the setup the viewer needs: start the clip earlier, or add a short separate setup clip. A payoff without its setup is worse than no clip.\n- Keep the best jokes and reactions when they happen inside the story, but skip funny bits that need a long explanation and don't move the story.\n- Skip repetition: if they fail the same thing five times, show the first attempt, one funny failure and the breakthrough.\n- Inside clips, cut the boring middle (walking in silence, waiting, unrelated chatter, repeated attempts) with cuts, as long as the clip stays understandable.",
+  "targetFraction": 0.3,
+  "minMinutes": 6,
+  "maxMinutes": 20,
+  "maxClipSeconds": 150,
+  "contextCaptions": true,
+  "prePaddingSeconds": 1.0,
+  "postPaddingSeconds": 1.5,
+  "maxSilenceSeconds": 2.5,
+  "keepSilenceSeconds": 0.5
+}

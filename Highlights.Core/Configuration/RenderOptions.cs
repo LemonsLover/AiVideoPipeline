@@ -13,6 +13,9 @@ public sealed class RenderOptions
     /// <summary>Video + audio crossfade between clips; 0 = hard cuts.</summary>
     public double CrossfadeSeconds { get; set; } = 0.5;
 
+    /// <summary>Crossfade at jump cuts inside a clip (removed pauses and plan cuts); 0 = hard cuts.</summary>
+    public double InnerCrossfadeSeconds { get; set; } = 0.2;
+
     /// <summary>"auto" (NVENC if it works, else libx264), "nvenc" or "x264".</summary>
     public string Encoder { get; set; } = "auto";
 
@@ -32,8 +35,13 @@ public sealed class RenderOptions
     /// <summary>On-screen title caption at the start of each clip (per project: render --titles).</summary>
     public bool Titles { get; set; }
     public double TitleSeconds { get; set; } = 3;
+    /// <summary>Font for titles and captions.</summary>
     public string TitleFont { get; set; } = @"C:\Windows\Fonts\segoeuib.ttf";
     public int TitleFontSize { get; set; } = 56;
+
+    /// <summary>Context captions (from the plan) at the start of a clip.</summary>
+    public double CaptionSeconds { get; set; } = 4;
+    public int CaptionFontSize { get; set; } = 44;
 
     public IReadOnlyList<int> EffectiveAudioTracks => AudioTracks is { Length: > 0 } ? AudioTracks : [0];
 }

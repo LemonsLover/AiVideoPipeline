@@ -1,0 +1,14 @@
+{
+  "name": "Funny moments",
+  "description": "A fast compilation of the funniest bits; every clip works on its own, dead air cut hard.",
+  "instructions": "Make a fast-paced compilation of the funniest moments of the session.\n- Every clip must work on its own. Start exactly where the viewer needs to start to get the joke (the line or action that sets it up) and end right after the laughter or reaction dies down. Typical clip length 8–30 s.\n- If the joke needs one sentence of backstory that isn't in the clip, give it as a caption. If it needs more than that, skip the moment.\n- Only genuinely funny things: jokes and banter that land, absurd situations, fails, over-the-top reactions. Nothing that is merely nice, informative or impressive.\n- Prefer moments with audible laughter ([LAUGHTER] events or laughter visible in the transcript).\n- Inside clips, cut everything between the setup and the punchline that the joke doesn't need.\n- Rank by how funny the moment is to someone who doesn't know these people; drop inside jokes that only work for the group.",
+  "targetFraction": 0.15,
+  "minMinutes": 3,
+  "maxMinutes": 10,
+  "maxClipSeconds": 60,
+  "contextCaptions": true,
+  "prePaddingSeconds": 0.5,
+  "postPaddingSeconds": 2.0,
+  "maxSilenceSeconds": 1.2,
+  "keepSilenceSeconds": 0.3
+}

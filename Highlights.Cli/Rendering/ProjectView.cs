@@ -2,6 +2,7 @@ using System.Globalization;
 using Highlights.Core.Pipeline;
 using Highlights.Core.Projects;
 using Highlights.Core.Stages.Analysis;
+using Highlights.Core.Stages.Planning;
 using Highlights.Core.Stages.Postprocessing;
 using Spectre.Console;
 
@@ -65,28 +66,46 @@ internal static class ProjectView
 
     public static void WriteMoments(MomentsDocument doc)
     {
-        var table = new Table().Border(TableBorder.Rounded).AddColumns("Id", "Time", "Len", "Category", "Score", "Title");
+        var table = new Table().Border(TableBorder.Rounded).AddColumns("Id", "Time", "Len", "Kind", "Fun", "Story", "Title");
         foreach (var m in doc.Moments)
         {
             var score = m.Score >= 8 ? $"[green]{m.Score}[/]" : m.Score >= 5 ? $"{m.Score}" : $"[grey]{m.Score}[/]";
-            table.AddRow(m.Id, Duration(m.Start), $"{m.End - m.Start:0}s", Markup.Escape(m.Category), score, Markup.Escape(m.Title));
+            var story = m.StoryImportance >= 7 ? $"[green]{m.StoryImportance}[/]" : $"{m.StoryImportance}";
+            table.AddRow(m.Id, Duration(m.Start), $"{m.End - m.Start:0}s", Markup.Escape(m.Category), score, story, Markup.Escape(m.Title));
         }
         AnsiConsole.Write(table);
         AnsiConsole.MarkupLineInterpolated($"[italic]{doc.Summary}[/]");
     }
 
-    public static void WriteClips(ClipsDocument clips, MomentsDocument moments)
+    public static void WritePlan(PlanDocument plan)
     {
-        var table = new Table().Border(TableBorder.Rounded).AddColumns("Clip", "Source", "Len", "Score", "Moments", "Title");
-        foreach (var c in clips.Clips)
-            table.AddRow(c.Id, $"{Duration(c.Start)}–{Duration(c.End)}", $"{c.Duration:0}s", c.Score.ToString(CultureInfo.InvariantCulture),
-                string.Join(",", c.MomentIds), Markup.Escape(c.Title));
+        var table = new Table().Border(TableBorder.Rounded).AddColumns("Clip", "Source", "Kept", "Cuts", "Beats", "Title / caption");
+        foreach (var c in plan.Clips)
+        {
+            var title = TitleWithCaption(c.Title, c.Caption);
+            table.AddRow(c.Id, $"{Duration(c.Start)}–{Duration(c.End)}", $"{c.KeptSeconds:0}s",
+                c.Cuts.Count.ToString(CultureInfo.InvariantCulture), Markup.Escape(string.Join(",", c.MomentIds)), title);
+        }
         AnsiConsole.Write(table);
-
-        var used = clips.Clips.SelectMany(c => c.MomentIds).ToHashSet();
-        var target = clips.TargetMinutes is > 0 ? $", target {clips.TargetMinutes} min" : "";
         AnsiConsole.MarkupLineInterpolated(
-            $"[bold]{clips.Clips.Count}[/] clips, [bold]{Duration(clips.TotalSeconds)}[/] total · {used.Count}/{moments.Moments.Count} moments (score ≥ {clips.MinScore}{target})");
+            $"[bold]{plan.ModeName}[/]: {plan.Clips.Count} clips, [bold]{Duration(plan.PlannedSeconds)}[/] planned (target {plan.TargetMinutes} min) · {plan.Model}");
+    }
+
+    private static string TitleWithCaption(string title, string? caption) =>
+        caption is null ? Markup.Escape(title) : $"{Markup.Escape(title)}\n[italic grey]{Markup.Escape(caption)}[/]";
+
+    public static void WriteClips(ClipsDocument clips)
+    {
+        var table = new Table().Border(TableBorder.Rounded).AddColumns("Clip", "Source", "Len", "Pieces", "Title / caption");
+        foreach (var c in clips.Clips)
+        {
+            var title = TitleWithCaption(c.Title, c.Caption);
+            table.AddRow(c.Id, $"{Duration(c.Start)}–{Duration(c.End)}", $"{c.Duration:0}s",
+                c.Segments.Count.ToString(CultureInfo.InvariantCulture), title);
+        }
+        AnsiConsole.Write(table);
+        AnsiConsole.MarkupLineInterpolated(
+            $"[bold]{clips.Clips.Count}[/] clips, [bold]{Duration(clips.TotalSeconds)}[/] total (target {clips.TargetMinutes} min)");
     }
 
     public static string Duration(double seconds) =>

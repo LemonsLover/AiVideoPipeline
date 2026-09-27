@@ -63,17 +63,17 @@ public sealed class ProjectSettings
 
     public string? Language { get; set; }
 
-    /// <summary>Game profile id (file name in the profiles directory, e.g. "bigwalk", "cs2").</summary>
-    public string? Game { get; set; }
+    /// <summary>Editing mode id (file name in Modes/, e.g. "story", "funny", "bestof").</summary>
+    public string? Mode { get; set; }
 
-    /// <summary>Postprocess: minimum moment score to include.</summary>
-    public int? MinScore { get; set; }
-
-    /// <summary>Postprocess: target video length in minutes (0 = no target, take everything above the threshold).</summary>
+    /// <summary>Plan: target video length in minutes (null/0 = the mode's default for the session length).</summary>
     public double? TargetMinutes { get; set; }
 
     /// <summary>Render: on-screen title captions (null = Render:Titles).</summary>
     public bool? Titles { get; set; }
+
+    /// <summary>Plan/render: on-screen context captions (null = the mode's default).</summary>
+    public bool? ContextCaptions { get; set; }
 }
 
 public sealed record LlmUsageRecord(

@@ -22,7 +22,7 @@
 
   <ItemGroup>
     <!-- Editable without recompiling; copied next to the executable of every app that references Core. -->
-    <Content Include="appsettings.json;Profiles\*.json;Prompts\*.md" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="appsettings.json;Modes\*.json;Prompts\*.md" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

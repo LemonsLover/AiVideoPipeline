@@ -1,7 +1,7 @@
 using System.CommandLine;
 using Highlights.Cli.Rendering;
 using Highlights.Core.Projects;
-using Highlights.Core.Stages.Analysis;
+using Highlights.Core.Stages.Planning;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
 
@@ -13,22 +13,22 @@ internal static class NewCommand
     {
         var video = new Argument<FileInfo>("video") { Description = "Gameplay recording" };
         var track = new Option<int?>("--track", "-t") { Description = "Voice track index (see the tracks table)" };
-        var game = CommonArguments.Game();
+        var mode = CommonArguments.Mode();
 
-        var command = new Command("new", "Create a project folder next to the video and read its tracks") { video, track, game };
+        var command = new Command("new", "Create a project folder next to the video and read its tracks") { video, track, mode };
         command.SetAction((parse, ct) => CommandHandler.RunAsync(async () =>
         {
             var store = services.GetRequiredService<IProjectStore>();
-            if (parse.GetValue(game) is { } g)
-                services.GetRequiredService<GameProfileStore>().Load(g); // fail before creating anything
+            if (parse.GetValue(mode) is { } m)
+                services.GetRequiredService<EditModeStore>().Load(m); // fail before creating anything
 
             var project = await AnsiConsole.Status().StartAsync("Reading media info...",
                 _ => store.CreateAsync(parse.GetValue(video)!.FullName, ct));
 
             var changed = parse.GetValue(track) is { } t && TrackSelection.Apply(project, t);
-            if (parse.GetValue(game) is { } gameId)
+            if (parse.GetValue(mode) is { } modeId)
             {
-                project.Settings.Game = gameId;
+                project.Settings.Mode = modeId;
                 changed = true;
             }
             if (changed)

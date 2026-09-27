@@ -9,6 +9,7 @@ public static class ProjectLayout
     public const string TranscriptFile = "transcript.json";
     public const string SignalsFile = "signals.json";
     public const string MomentsFile = "moments.json";
+    public const string PlanFile = "plan.json";
     public const string ClipsFile = "clips.json";
     public const string ReviewFile = "review.json";
     public const string EditFile = "edit.json";

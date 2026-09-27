@@ -11,9 +11,14 @@ internal static class CommonArguments
         DefaultValueFactory = _ => ".",
     };
 
-    public static Option<string?> Game() => new("--game", "-g")
+    public static Option<string?> Mode() => new("--mode")
     {
-        Description = "Game profile for this project: bigwalk, cs2, generic, ... (file name in Profiles/, saved)",
+        Description = "Editing mode for this project: story, funny, bestof, ... (file name in Modes/, saved)",
+    };
+
+    public static Option<bool> DryRun(string file) => new("--dry-run")
+    {
+        Description = $"Build the prompt and save it to {file} without calling the LLM",
     };
 
     public static Option<bool> Force() => new("--force", "-f")

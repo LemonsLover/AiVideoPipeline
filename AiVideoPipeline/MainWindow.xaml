@@ -9,7 +9,7 @@
         d:DataContext="{d:DesignInstance vm:MainViewModel}"
         Title="{Binding WindowTitle}" Height="900" Width="1600" MinHeight="600" MinWidth="1100"
         WindowStartupLocation="CenterScreen" AllowDrop="True" Drop="OnDrop"
-        Style="{StaticResource {x:Type Window}}">
+        Style="{StaticResource {x:Type Window}}" Icon="Assets/app.ico">
 
     <Window.InputBindings>
         <KeyBinding Key="O" Modifiers="Control" Command="{Binding OpenCommand}" />
@@ -50,24 +50,16 @@
                         <TextBlock Text="Voice track" Style="{StaticResource Muted}" />
                         <ComboBox ItemsSource="{Binding Tracks}" SelectedItem="{Binding SelectedTrack}" DisplayMemberPath="Label" Margin="0,3,0,8" />
 
-                        <TextBlock Text="Game profile" Style="{StaticResource Muted}" />
-                        <ComboBox ItemsSource="{Binding Games}" SelectedItem="{Binding SelectedGame}" Margin="0,3,0,8" />
+                        <TextBlock Text="Editing mode" Style="{StaticResource Muted}" />
+                        <ComboBox ItemsSource="{Binding Modes}" SelectedItem="{Binding SelectedMode}" Margin="0,3,0,2"
+                                  ToolTip="{Binding SelectedMode.Description}" />
+                        <TextBlock Text="{Binding SelectedMode.Description}" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,8" />
 
-                        <Grid Margin="0,0,0,8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition />
-                                <ColumnDefinition Width="10" />
-                                <ColumnDefinition />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel>
-                                <TextBlock Text="Min score (0–10)" Style="{StaticResource Muted}" />
-                                <TextBox Text="{Binding MinScore, UpdateSourceTrigger=LostFocus}" Margin="0,3,0,0" />
-                            </StackPanel>
-                            <StackPanel Grid.Column="2">
-                                <TextBlock Text="Target minutes (0 = all)" Style="{StaticResource Muted}" />
-                                <TextBox Text="{Binding TargetMinutes, UpdateSourceTrigger=LostFocus}" Margin="0,3,0,0" />
-                            </StackPanel>
-                        </Grid>
+                        <TextBlock Text="Target minutes (0 = mode default)" Style="{StaticResource Muted}" />
+                        <TextBox Text="{Binding TargetMinutes, UpdateSourceTrigger=LostFocus}" Margin="0,3,0,8" />
+
+                        <CheckBox Content="Context captions (what's going on)" IsChecked="{Binding ContextCaptions}" Margin="0,0,0,4"
+                                  ToolTip="The plan may add a short on-screen line when a clip needs context" />
                         <CheckBox Content="Title captions in the video" IsChecked="{Binding Titles}" />
                     </StackPanel>
 
@@ -250,8 +242,12 @@
                         <CheckBox DockPanel.Dock="Right" Content="Included" IsChecked="{Binding Included}" />
                         <TextBlock Text="{Binding Id}" Style="{StaticResource Header}" Margin="0,0,0,6" />
                     </DockPanel>
-                    <TextBlock Text="Title (caption / chapter)" Style="{StaticResource Muted}" />
-                    <TextBox Text="{Binding Title, UpdateSourceTrigger=LostFocus}" Margin="0,3,0,10" />
+                    <TextBlock Text="Title (chapter)" Style="{StaticResource Muted}" />
+                    <TextBox Text="{Binding Title, UpdateSourceTrigger=LostFocus}" Margin="0,3,0,8" />
+                    <TextBlock Text="Context caption (empty = none)" Style="{StaticResource Muted}" />
+                    <TextBox Text="{Binding Caption, UpdateSourceTrigger=LostFocus}" Margin="0,3,0,8" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding PiecesText}" Style="{StaticResource Muted}" Margin="0,0,0,8"
+                               ToolTip="Pauses and boring stretches inside the clip are cut out (jump cuts)" />
 
                     <Grid>
                         <Grid.ColumnDefinitions>

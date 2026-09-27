@@ -1,19 +1,20 @@
 namespace Highlights.Core.Configuration;
 
+/// <summary>LLM stages (analyze, plan, describe): prompts, editing modes and output language.</summary>
 public sealed class AnalyzeOptions
 {
     public const string SectionName = "Analyze";
 
-    /// <summary>Game profiles (*.json); relative paths are resolved against the application directory.</summary>
-    public string ProfilesDirectory { get; set; } = "Profiles";
+    /// <summary>Editing modes (*.json); relative paths are resolved against the application directory.</summary>
+    public string ModesDirectory { get; set; } = "Modes";
 
-    /// <summary>Prompt templates (analyze.system.md, analyze.user.md).</summary>
+    /// <summary>Prompt templates (analyze.*.md, plan.*.md, describe.*.md).</summary>
     public string PromptsDirectory { get; set; } = "Prompts";
 
-    /// <summary>Profile used when the project has no game set.</summary>
-    public string DefaultProfile { get; set; } = "generic";
+    /// <summary>Mode used when the project has none set.</summary>
+    public string DefaultMode { get; set; } = "story";
 
-    /// <summary>Language of titles, descriptions and the summary.</summary>
+    /// <summary>Language of titles, captions, descriptions and summaries.</summary>
     public string OutputLanguage { get; set; } = "English";
 
     /// <summary>"loud" events weaker than this (dB above baseline) are left out of the LLM timeline.</summary>

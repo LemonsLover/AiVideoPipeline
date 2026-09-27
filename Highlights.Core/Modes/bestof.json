@@ -1,0 +1,14 @@
+{
+  "name": "Best of",
+  "description": "The strongest moments of any kind (funny, tense, impressive, surprising), chronological, each with just enough context.",
+  "instructions": "Pick the strongest moments of the session of any kind — funny, tense, impressive, surprising, heartfelt — and present them in chronological order.\n- Each clip: a short setup, the moment itself, the reaction. Typical clip length 15–60 s.\n- Give just enough context to understand each moment: start a bit earlier, or use a caption for what happened before (\"After an hour of wandering, they finally find the tunnel\").\n- Use captions to bridge time and place between clips when it helps the viewer follow along.\n- Variety matters: don't pick five similar moments; prefer the ones with the strongest reactions and clearest payoff.\n- Inside clips, cut dead air, unrelated chatter and repeated attempts.",
+  "targetFraction": 0.22,
+  "minMinutes": 5,
+  "maxMinutes": 14,
+  "maxClipSeconds": 90,
+  "contextCaptions": true,
+  "prePaddingSeconds": 0.8,
+  "postPaddingSeconds": 1.8,
+  "maxSilenceSeconds": 1.8,
+  "keepSilenceSeconds": 0.4
+}
