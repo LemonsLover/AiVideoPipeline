@@ -71,6 +71,9 @@ public sealed class ProjectSettings
 
     /// <summary>Postprocess: target video length in minutes (0 = no target, take everything above the threshold).</summary>
     public double? TargetMinutes { get; set; }
+
+    /// <summary>Render: on-screen title captions (null = Render:Titles).</summary>
+    public bool? Titles { get; set; }
 }
 
 public sealed record LlmUsageRecord(

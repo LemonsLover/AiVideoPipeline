@@ -9,4 +9,5 @@ public static class StageNames
     public const string Postprocess = "postprocess";
     public const string Review = "review";
     public const string Render = "render";
+    public const string Describe = "describe";
 }

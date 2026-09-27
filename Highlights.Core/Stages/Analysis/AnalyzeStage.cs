@@ -1,6 +1,4 @@
 using System.Globalization;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json.Nodes;
 using Highlights.Core.Configuration;
 using Highlights.Core.Llm;
@@ -14,7 +12,8 @@ namespace Highlights.Core.Stages.Analysis;
 
 /// <summary>Asks the LLM to find highlight moments in the transcript + audio events timeline → moments.json.</summary>
 public sealed class AnalyzeStage(
-    StructuredLlm llm, GameProfileStore profiles, IOptions<AnalyzeOptions> options, IOptions<OpenRouterOptions> openRouter)
+    StructuredLlm llm, GameProfileStore profiles, PromptTemplates templates, IOptions<AnalyzeOptions> options,
+    IOptions<OpenRouterOptions> openRouter)
     : IPipelineStage
 {
     private const string SystemTemplate = "analyze.system.md";
@@ -29,8 +28,8 @@ public sealed class AnalyzeStage(
         var o = options.Value;
         var id = profiles.ResolveId(project);
         profiles.Load(id); // validates the profile
-        return string.Join('|', id, FileHash(profiles.PathOf(id)), FileHash(TemplatePath(SystemTemplate)),
-            FileHash(TemplatePath(UserTemplate)), o.OutputLanguage, o.MinLoudPeakDb, string.Join(',', openRouter.Value.EffectiveModels));
+        return string.Join('|', id, PromptTemplates.FileHash(profiles.PathOf(id)), templates.HashOf(SystemTemplate),
+            templates.HashOf(UserTemplate), o.OutputLanguage, o.MinLoudPeakDb, string.Join(',', openRouter.Value.EffectiveModels));
     }
 
     public async Task<IReadOnlyDictionary<string, string>> RunAsync(
@@ -109,8 +108,8 @@ public sealed class AnalyzeStage(
         };
         IReadOnlyList<LlmMessage> messages =
         [
-            LlmMessage.System(Render(await File.ReadAllTextAsync(TemplatePath(SystemTemplate), cancellationToken), values)),
-            LlmMessage.User(Render(await File.ReadAllTextAsync(TemplatePath(UserTemplate), cancellationToken), values)),
+            LlmMessage.System(await templates.RenderAsync(SystemTemplate, values, cancellationToken)),
+            LlmMessage.User(await templates.RenderAsync(UserTemplate, values, cancellationToken)),
         ];
         return (profileId, profile, duration, messages);
     }
@@ -179,21 +178,4 @@ public sealed class AnalyzeStage(
             },
         });
     }
-
-    private static string Render(string template, IReadOnlyDictionary<string, string> values)
-    {
-        var sb = new StringBuilder(template);
-        foreach (var (key, value) in values)
-            sb.Replace("{{" + key + "}}", value);
-        return sb.ToString();
-    }
-
-    private string TemplatePath(string name)
-    {
-        var path = Path.Combine(options.Value.ResolveDirectory(options.Value.PromptsDirectory), name);
-        return File.Exists(path) ? path : throw new PipelineException($"Prompt template not found: {path}");
-    }
-
-    private static string FileHash(string path) =>
-        Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(path)))[..12];
 }

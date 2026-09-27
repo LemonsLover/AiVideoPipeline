@@ -7,6 +7,7 @@ using Highlights.Core.Projects;
 using Highlights.Core.Stages;
 using Highlights.Core.Stages.Analysis;
 using Highlights.Core.Stages.Postprocessing;
+using Highlights.Core.Stages.Rendering;
 using Highlights.Core.Stages.Review;
 using Highlights.Core.Stages.Signals;
 using Highlights.Core.Stages.Transcription;
@@ -27,6 +28,7 @@ public static class ServiceCollectionExtensions
         services.Configure<OpenRouterOptions>(configuration.GetSection(OpenRouterOptions.SectionName));
         services.Configure<AnalyzeOptions>(configuration.GetSection(AnalyzeOptions.SectionName));
         services.Configure<PostprocessOptions>(configuration.GetSection(PostprocessOptions.SectionName));
+        services.Configure<RenderOptions>(configuration.GetSection(RenderOptions.SectionName));
 
         services.AddSingleton<ToolLocator>();
         services.AddSingleton<IMediaProbe, MediaProbe>();
@@ -47,6 +49,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ILlmClient, OpenRouterClient>();
         services.AddSingleton<StructuredLlm>();
         services.AddSingleton<GameProfileStore>();
+        services.AddSingleton<PromptTemplates>();
 
         services.AddSingleton<IPipelineStage, ExtractStage>();
         services.AddSingleton<IPipelineStage, TranscribeStage>();
@@ -55,6 +58,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPipelineStage, PostprocessStage>();
         services.AddSingleton<ReviewService>();
         services.AddSingleton<IPipelineStage, ReviewStage>();
+        services.AddSingleton<IPipelineStage, RenderStage>();
+        services.AddSingleton<IPipelineStage, DescribeStage>();
         services.AddSingleton<PipelineRunner>();
 
         return services;
