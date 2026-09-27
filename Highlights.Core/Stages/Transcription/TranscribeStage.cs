@@ -68,7 +68,7 @@ public sealed class TranscribeStage(
                     Start = Round(s.Start.TotalSeconds),
                     End = Round(s.End.TotalSeconds),
                     Text = text,
-                    Probability = Round(s.Probability),
+                    Probability = MeanProbability(s.Tokens),
                     Words = o.WordTimestamps ? BuildWords(s.Tokens) : null,
                 });
                 progress.Report(new StageProgress(Name, Math.Min(1, s.End.TotalSeconds / duration),
@@ -129,13 +129,9 @@ public sealed class TranscribeStage(
             text = null;
         }
 
-        foreach (var t in tokens)
+        foreach (var t in tokens.Where(IsTextToken))
         {
-            if (string.IsNullOrEmpty(t.Text) || t.Text.StartsWith("[_", StringComparison.Ordinal)
-                                             || t.Text.StartsWith("<|", StringComparison.Ordinal))
-                continue;
-
-            if (text is null || t.Text.StartsWith(' '))
+            if (text is null || t.Text!.StartsWith(' '))
             {
                 Flush();
                 text = t.Text;
@@ -157,6 +153,18 @@ public sealed class TranscribeStage(
         Flush();
         return words;
     }
+
+    /// <summary>SegmentData.Probability is only filled with WithProbabilities(); token probabilities are always there.</summary>
+    private static double? MeanProbability(IEnumerable<WhisperToken>? tokens)
+    {
+        var text = tokens?.Where(IsTextToken).ToList();
+        return text is { Count: > 0 } ? Round(text.Average(t => t.Probability)) : null;
+    }
+
+    private static bool IsTextToken(WhisperToken t) =>
+        !string.IsNullOrEmpty(t.Text)
+        && !t.Text.StartsWith("[_", StringComparison.Ordinal)
+        && !t.Text.StartsWith("<|", StringComparison.Ordinal);
 
     private static double Round(double value) => Math.Round(value, 3);
 
