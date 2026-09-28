@@ -32,6 +32,7 @@ var root = new RootCommand("Finds funny moments in gameplay recordings and build
     ExtractCommand.Create(host.Services),
     TranscribeCommand.Create(host.Services),
     SignalsCommand.Create(host.Services),
+    VisionCommand.Create(host.Services),
     AnalyzeCommand.Create(host.Services),
     PlanCommand.Create(host.Services),
     PostprocessCommand.Create(host.Services),

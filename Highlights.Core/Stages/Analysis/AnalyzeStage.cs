@@ -25,7 +25,7 @@ public sealed class AnalyzeStage(
     private const int MaxBeatSeconds = 150;
 
     public string Name => StageNames.Analyze;
-    public IReadOnlyList<string> DependsOn => [StageNames.Transcribe, StageNames.AudioSignals];
+    public IReadOnlyList<string> DependsOn => [StageNames.Transcribe, StageNames.AudioSignals, StageNames.Vision];
     public IReadOnlyList<string> Artifacts => [ProjectLayout.MomentsFile];
 
     public string DescribeInputs(HighlightsProject project)
@@ -101,7 +101,8 @@ public sealed class AnalyzeStage(
             ["output_language"] = o.OutputLanguage,
             ["max_beat_seconds"] = MaxBeatSeconds.ToString(CultureInfo.InvariantCulture),
             ["duration_seconds"] = duration.ToString("0", CultureInfo.InvariantCulture),
-            ["timeline"] = TimelineBuilder.Build(transcript, signals, o.MinLoudPeakDb),
+            ["timeline"] = TimelineBuilder.Build(transcript, signals, o.MinLoudPeakDb,
+                await TimelineBuilder.LoadVisionAsync(project, cancellationToken)),
         };
         IReadOnlyList<LlmMessage> messages =
         [

@@ -19,17 +19,22 @@ internal static class ClipPlanner
         mode.PrePaddingSeconds, mode.PostPaddingSeconds, mode.MaxSilenceSeconds, mode.KeepSilenceSeconds,
         o.MergeGapSeconds, o.MaxSnapSeconds, o.MinSegmentSeconds);
 
+    /// <param name="refined">In/out points corrected against the frames, by plan clip id.</param>
+    /// <param name="onScreen">Stretches with on-screen action (motion, vision events): never trimmed as pauses.</param>
     public static IReadOnlyList<Clip> Build(
         PlanDocument plan, IReadOnlyDictionary<string, Moment> moments, IReadOnlyList<TranscriptWord> words,
-        IReadOnlyList<SignalEvent> events, double duration, Settings s)
+        IReadOnlyList<SignalEvent> events, IReadOnlyDictionary<string, RefinedEdges> refined,
+        IReadOnlyList<TimeRange> onScreen, double duration, Settings s)
     {
+        var active = events.Select(e => new TimeRange(e.Start, e.End)).Concat(onScreen).ToList();
         var drafts = new List<Draft>();
-        foreach (var p in plan.Clips.OrderBy(c => c.Start))
+        foreach (var planned in plan.Clips.OrderBy(c => refined.TryGetValue(c.Id, out var r) ? r.Start : c.Start))
         {
+            var p = refined.TryGetValue(planned.Id, out var edges) ? planned with { Start = edges.Start, End = edges.End } : planned;
             var outer = new TimeRange(Math.Max(0, p.Start - s.PrePadding), Math.Min(duration, p.End + s.PostPadding));
-            var segments = TimeRange.Subtract(outer, p.Cuts)
+            var segments = TimeRange.Subtract(outer, p.Cuts.Where(c => c.Start > p.Start && c.End < p.End))
                 .Select(r => new TimeRange(SnapStart(r.Start, words, s.MaxSnap), SnapEnd(r.End, words, s.MaxSnap)))
-                .SelectMany(r => TrimSilence(r, words, events, s))
+                .SelectMany(r => TrimSilence(r, words, active, s))
                 .Where(r => r.Duration >= s.MinSegment)
                 .ToList();
             if (segments.Count == 0)
@@ -64,10 +69,10 @@ internal static class ClipPlanner
 
     /// <summary>
     /// Removes pauses in speech longer than MaxSilence, keeping KeepSilence on each side. Pauses that contain an
-    /// audio event (laughter, yelling, a loud game moment) are kept — something is happening there.
+    /// audio event (laughter, yelling, gunfire) or on-screen action (motion, vision events) are kept.
     /// </summary>
     internal static IEnumerable<TimeRange> TrimSilence(
-        TimeRange range, IReadOnlyList<TranscriptWord> words, IReadOnlyList<SignalEvent> events, Settings s)
+        TimeRange range, IReadOnlyList<TranscriptWord> words, IReadOnlyList<TimeRange> activity, Settings s)
     {
         if (s.MaxSilence <= 0)
         {
@@ -77,7 +82,7 @@ internal static class ClipPlanner
 
         // "Active" = speech or an audio event; everything else is a pause candidate.
         var active = words.Where(w => w.End > range.Start && w.Start < range.End).Select(w => new TimeRange(w.Start, w.End))
-            .Concat(events.Where(e => e.End > range.Start && e.Start < range.End).Select(e => new TimeRange(e.Start, e.End)))
+            .Concat(activity.Where(a => a.End > range.Start && a.Start < range.End))
             .OrderBy(r => r.Start)
             .ToList();
         if (active.Count == 0)

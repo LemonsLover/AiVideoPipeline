@@ -126,7 +126,8 @@ public sealed class PlanStage(
             ["duration_seconds"] = duration.ToString("0", CultureInfo.InvariantCulture),
             ["summary"] = moments.Summary,
             ["beats"] = FormatBeats(moments.Moments),
-            ["timeline"] = TimelineBuilder.Build(transcript, signals, o.MinLoudPeakDb),
+            ["timeline"] = TimelineBuilder.Build(transcript, signals, o.MinLoudPeakDb,
+                await TimelineBuilder.LoadVisionAsync(project, cancellationToken)),
         };
         IReadOnlyList<LlmMessage> messages =
         [

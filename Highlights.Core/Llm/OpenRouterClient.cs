@@ -23,8 +23,11 @@ public sealed class OpenRouterClient(
         var body = new JsonObject
         {
             ["model"] = request.Model,
-            ["messages"] = new JsonArray(request.Messages
-                .Select(m => (JsonNode)new JsonObject { ["role"] = m.Role, ["content"] = m.Content }).ToArray()),
+            ["messages"] = new JsonArray(request.Messages.Select(m => (JsonNode)new JsonObject
+            {
+                ["role"] = m.Role,
+                ["content"] = m.Parts is { } parts ? ContentParts(parts) : m.Content,
+            }).ToArray()),
             ["usage"] = new JsonObject { ["include"] = true },
         };
         if (request.Temperature is { } t)
@@ -152,6 +155,18 @@ public sealed class OpenRouterClient(
                       : null);
         return string.IsNullOrWhiteSpace(key) ? null : key.Trim();
     }
+
+    /// <summary>OpenAI-style multimodal content: text parts and images as base64 data URLs.</summary>
+    private static JsonArray ContentParts(IReadOnlyList<LlmContentPart> parts) =>
+        new(parts.Select(p => (JsonNode)(p.Jpeg is { } jpeg
+            ? new JsonObject
+            {
+                ["type"] = "image_url",
+                ["image_url"] = p.LowDetail
+                    ? new JsonObject { ["url"] = "data:image/jpeg;base64," + Convert.ToBase64String(jpeg), ["detail"] = "low" }
+                    : new JsonObject { ["url"] = "data:image/jpeg;base64," + Convert.ToBase64String(jpeg) },
+            }
+            : new JsonObject { ["type"] = "text", ["text"] = p.Text ?? "" })).ToArray());
 
     private static string ErrorMessage(string body)
     {

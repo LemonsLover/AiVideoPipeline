@@ -22,15 +22,17 @@ public sealed class StructuredLlm(ILlmClient client, IOptions<OpenRouterOptions>
 {
     /// <param name="validate">Returns an error message for the model, or null when the value is acceptable.</param>
     /// <param name="onCall">Called after every paid call (including failed attempts), with the model id.</param>
+    /// <param name="models">Fallback chain to use instead of OpenRouter:Models (e.g. vision-capable models).</param>
     public async Task<StructuredResult<T>> CompleteAsync<T>(
         IReadOnlyList<LlmMessage> messages, LlmJsonSchema schema, Func<T, string?> validate,
-        IProgress<StageProgress> progress, string stage, Action<string, LlmUsage>? onCall, CancellationToken cancellationToken)
+        IProgress<StageProgress> progress, string stage, Action<string, LlmUsage>? onCall, CancellationToken cancellationToken,
+        IReadOnlyList<string>? models = null)
     {
         var o = options.Value;
         var calls = new List<LlmUsage>();
         var failures = new List<string>();
 
-        foreach (var model in o.EffectiveModels)
+        foreach (var model in models ?? o.EffectiveModels)
         {
             LlmModelInfo? info;
             try

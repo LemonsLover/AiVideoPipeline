@@ -12,6 +12,7 @@ using Highlights.Core.Stages.Rendering;
 using Highlights.Core.Stages.Review;
 using Highlights.Core.Stages.Signals;
 using Highlights.Core.Stages.Transcription;
+using Highlights.Core.Stages.Video;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -31,6 +32,7 @@ public static class ServiceCollectionExtensions
         services.Configure<PostprocessOptions>(configuration.GetSection(PostprocessOptions.SectionName));
         services.Configure<RenderOptions>(configuration.GetSection(RenderOptions.SectionName));
         services.Configure<ImportOptions>(configuration.GetSection(ImportOptions.SectionName));
+        services.Configure<VisionOptions>(configuration.GetSection(VisionOptions.SectionName));
 
         services.AddSingleton<ToolLocator>();
         services.AddSingleton<EnvironmentCheck>();
@@ -58,8 +60,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPipelineStage, ExtractStage>();
         services.AddSingleton<IPipelineStage, TranscribeStage>();
         services.AddSingleton<IPipelineStage, AudioSignalsStage>();
+        services.AddSingleton<IPipelineStage, VideoFramesStage>();
+        services.AddSingleton<IPipelineStage, VisionStage>();
         services.AddSingleton<IPipelineStage, AnalyzeStage>();
         services.AddSingleton<IPipelineStage, PlanStage>();
+        services.AddSingleton<IPipelineStage, RefineStage>();
         services.AddSingleton<IPipelineStage, PostprocessStage>();
         services.AddSingleton<ReviewService>();
         services.AddSingleton<IPipelineStage, ReviewStage>();

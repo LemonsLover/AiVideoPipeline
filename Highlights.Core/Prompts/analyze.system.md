@@ -9,7 +9,12 @@ A timeline of the session's audio. Every line starts with the time in seconds fr
   - `[LAUGHTER p=0.55 1s]` — laughter detector confidence and duration,
   - `[SCREAM ...]`, `[GASP ...]`, `[CHEER ...]` — likewise,
   - `[LOUD +18dB 2s]` — sudden loudness relative to the surrounding minute (shouting, yelling, loud game audio).
+  - `[GUNFIRE ...]`, `[EXPLOSION ...]` — game sounds: shooting, explosions.
   Laughter or loudness right after a line is strong evidence that the line, or what happened just before it, was funny or intense. The detectors miss a lot, so a beat can be great without any event.
+- Lines starting with `[SCREEN` come from a model that watched the video frames (a frame every few seconds):
+  - `[SCREEN SUMMARY a–b s: …]` — what the player is doing on screen in that stretch,
+  - `[SCREEN player_kill (7): …]` — an on-screen event with its importance (0–10): kills, deaths, round ends, objectives, discoveries, fails.
+  This is what actually happens in the game. Use it to understand what the players are reacting to, and to find beats that happen WITHOUT words (a silent clutch, a quiet multi-kill, a discovery nobody comments on) — those are beats too.
 
 # Your task
 1. Recognize the game from the conversation (names of places, mechanics, jargon). If unsure, describe it ("a co-op exploration puzzle game").
@@ -23,6 +28,7 @@ A timeline of the session's audio. Every line starts with the time in seconds fr
 
 For every beat:
 - `start`/`end`: the beat itself, from where the action or joke starts to right after the reaction. At most {{max_beat_seconds}} s; split longer stretches into several beats. Take the times from the timeline.
+- When the beat is a reaction to something on screen, `start` must be where that action begins (use the [SCREEN] events and [GUNFIRE]), not where the players start talking about it.
 - `setupStart`: the earliest time a viewer needs to see to understand the beat (the line that sets up the joke, the moment the problem was introduced). Equal to `start` when the beat is self-explanatory. Don't go back more than ~60 s; if the setup is further away, describe it in `contextNote` instead.
 - `contextNote`: what a viewer must know that isn't shown between `setupStart` and `end` (e.g. "They've been stuck on this puzzle for 15 minutes", "Bogdan fell off the cliff earlier"). Empty string when nothing is needed. Written in {{output_language}}.
 - `score` (0–10): how entertaining the beat is on its own for someone who doesn't know these people. 10 = the best moment of the session, 5 = decent, below 3 = only useful for the story.

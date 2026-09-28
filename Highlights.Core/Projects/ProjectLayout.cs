@@ -8,8 +8,12 @@ public static class ProjectLayout
     public const string AudioFile = "audio.wav";
     public const string TranscriptFile = "transcript.json";
     public const string SignalsFile = "signals.json";
+    public const string FramesDirectory = "frames";
+    public const string MotionFile = "motion.json";
+    public const string VisionFile = "vision.json";
     public const string MomentsFile = "moments.json";
     public const string PlanFile = "plan.json";
+    public const string RefineFile = "refine.json";
     public const string ClipsFile = "clips.json";
     public const string ReviewFile = "review.json";
     public const string EditFile = "edit.json";

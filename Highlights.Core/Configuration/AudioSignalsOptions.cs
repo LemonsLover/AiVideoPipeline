@@ -37,6 +37,8 @@ public sealed class AudioSignalsOptions
             ["scream"] = ["Screaming", "Shout", "Yell", "Whoop", "Children shouting"],
             ["gasp"] = ["Gasp"],
             ["cheer"] = ["Cheering", "Applause", "Clapping"],
+            ["gunfire"] = ["Gunshot, gunfire", "Machine gun", "Fusillade", "Artillery fire", "Cap gun"],
+            ["explosion"] = ["Explosion", "Boom", "Burst, pop", "Bang"],
         };
 
     /// <summary>
