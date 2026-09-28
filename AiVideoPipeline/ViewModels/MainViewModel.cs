@@ -429,7 +429,14 @@ public sealed partial class MainViewModel : ObservableObject
                 s.Detail = state?.Status == StageStatus.Completed ? "inputs changed — will re-run" : null;
             }
         }
-        CostText = Project.LlmUsage.Count == 0 ? "" : $"LLM cost: ${Project.TotalLlmCostUsd.ToString("0.###", CultureInfo.InvariantCulture)}";
+        foreach (var s in Stages)
+        {
+            var (total, lastRun, calls) = Project.LlmCostOf(s.Name);
+            s.Cost = calls == 0 ? null : Money(lastRun > 0 ? lastRun : total);
+            s.CostDetails = calls == 0 ? null
+                : $"Last run: {Money(lastRun)}\nAll runs of this step: {Money(total)} in {calls} LLM call(s)";
+        }
+        CostText = Project.LlmUsage.Count == 0 ? "" : $"LLM cost: {Money(Project.TotalLlmCostUsd)}";
         OpenOutputCommand.NotifyCanExecuteChanged();
     }
 
@@ -626,6 +633,8 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     private static string FirstLine(string text) => text.Split('\n', 2)[0].Trim();
+
+    private static string Money(decimal usd) => "$" + usd.ToString(usd < 0.1m ? "0.000" : "0.00", CultureInfo.InvariantCulture);
 
     public static string Format(double seconds)
     {

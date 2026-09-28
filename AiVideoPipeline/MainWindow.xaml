@@ -81,7 +81,12 @@
                                              Fill="{Binding State, Converter={StaticResource StageStateToBrush}}"
                                              ToolTip="{Binding State, Converter={StaticResource StageStateToText}}" />
                                     <StackPanel Grid.Column="1" Margin="4,0,6,0">
-                                        <TextBlock Text="{Binding Title}" />
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Right" Text="{Binding Cost}" Style="{StaticResource Muted}" Margin="6,0,0,0"
+                                                       ToolTip="{Binding CostDetails}"
+                                                       Visibility="{Binding Cost, Converter={StaticResource NullToVisibility}}" />
+                                            <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                                        </DockPanel>
                                         <TextBlock Text="{Binding Detail}" Style="{StaticResource Muted}" TextTrimming="CharacterEllipsis"
                                                    ToolTip="{Binding Detail}"
                                                    Visibility="{Binding Detail, Converter={StaticResource NullToVisibility}}" />

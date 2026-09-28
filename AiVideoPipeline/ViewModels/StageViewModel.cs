@@ -24,4 +24,11 @@ public sealed partial class StageViewModel(string name, string title, bool usesL
 
     [ObservableProperty]
     public partial string? Detail { get; set; }
+
+    /// <summary>LLM cost of the latest run, e.g. "$0.12"; null for steps without paid calls.</summary>
+    [ObservableProperty]
+    public partial string? Cost { get; set; }
+
+    [ObservableProperty]
+    public partial string? CostDetails { get; set; }
 }

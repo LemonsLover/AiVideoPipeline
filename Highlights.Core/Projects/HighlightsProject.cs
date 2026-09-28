@@ -29,6 +29,15 @@ public sealed class HighlightsProject
 
     public decimal TotalLlmCostUsd => LlmUsage.Sum(u => u.CostUsd ?? 0);
 
+    /// <summary>LLM spending of one step: all runs, the latest run (calls since it started), number of calls.</summary>
+    public (decimal Total, decimal LastRun, int Calls) LlmCostOf(string stage)
+    {
+        var records = LlmUsage.Where(u => u.Stage.Equals(stage, StringComparison.OrdinalIgnoreCase)).ToList();
+        var started = Stages.GetValueOrDefault(stage)?.StartedAt;
+        var lastRun = started is null ? 0 : records.Where(u => u.At >= started).Sum(u => u.CostUsd ?? 0);
+        return (records.Sum(u => u.CostUsd ?? 0), lastRun, records.Count);
+    }
+
     /// <summary>Project directory; not serialized, set by <see cref="IProjectStore"/>.</summary>
     [JsonIgnore]
     public string Directory { get; set; } = "";

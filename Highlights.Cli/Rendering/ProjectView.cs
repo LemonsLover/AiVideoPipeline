@@ -60,7 +60,9 @@ internal static class ProjectView
                 : state?.Status == StageStatus.Completed ? "[yellow]outdated[/]"
                 : state?.Status is { } s ? Markup.Escape(s.ToString().ToLowerInvariant())
                 : "[grey]not run[/]";
-            AnsiConsole.MarkupLine($"  {Markup.Escape(name),-14} {status}");
+            var (total, lastRun, calls) = project.LlmCostOf(name);
+            var cost = calls == 0 ? "" : $" [grey]${lastRun.ToString("0.###", CultureInfo.InvariantCulture)} last run, ${total.ToString("0.###", CultureInfo.InvariantCulture)} total[/]";
+            AnsiConsole.MarkupLine($"  {Markup.Escape(name),-14} {status}{cost}");
         }
     }
 
