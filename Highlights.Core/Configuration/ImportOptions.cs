@@ -8,7 +8,7 @@ public sealed class ImportOptions
     /// <summary>Where downloaded videos go; empty = %USERPROFILE%\Videos\Highlights.</summary>
     public string? DownloadDirectory { get; set; }
 
-    /// <summary>Path to yt-dlp.exe or its folder; empty = PATH, else a copy downloaded on first use.</summary>
+    /// <summary>Path to yt-dlp.exe or its folder; empty = PATH, else a copy downloaded on first use to %USERPROFILE%\.highlights\tools.</summary>
     public string? YtDlpPath { get; set; }
 
     /// <summary>Where the managed copy is downloaded from (official release).</summary>

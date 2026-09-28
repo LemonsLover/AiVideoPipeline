@@ -129,7 +129,7 @@ public sealed partial class YouTubeImporter(
             if (tools.TryFind("yt-dlp", options.CurrentValue.YtDlpPath) is { } existing)
                 return existing;
 
-            var managed = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Highlights", "tools", "yt-dlp.exe");
+            var managed = Path.Combine(HighlightsConfiguration.UserDirectory, "tools", "yt-dlp.exe");
             if (!File.Exists(managed))
             {
                 await downloader.DownloadAsync(new Uri(options.CurrentValue.YtDlpUrl), managed, progress, Stage, cancellationToken);

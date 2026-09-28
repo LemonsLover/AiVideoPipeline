@@ -9,7 +9,7 @@ namespace Highlights.Core.Media;
 /// Finds ffmpeg/ffprobe/ffplay. Order: the tool's own setting, the Tools:FfmpegPath folder, a "tools\ffmpeg\bin"
 /// folder next to the app or above it (portable/dev layout), PATH (process, user and machine — a process started
 /// from an old shell may have a stale one), and WinGet's links folder. Only successful lookups are cached, and
-/// settings are re-read each time, so fixing appsettings.local.json takes effect without restarting.
+/// settings are re-read each time, so fixing settings.json takes effect without restarting.
 /// </summary>
 public sealed class ToolLocator(IOptionsMonitor<ToolsOptions> options)
 {

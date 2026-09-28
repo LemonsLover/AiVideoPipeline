@@ -56,7 +56,11 @@ internal sealed class YamnetClassifier : IDisposable
 
     public YamnetClassifier(string modelDirectory)
     {
-        _session = new InferenceSession(Path.Combine(modelDirectory, YamnetModelManager.ModelFile));
+        // ONNX Runtime checks that yamnet.data lies inside the model's folder by comparing real (final) paths.
+        // Under file-system redirection (e.g. launched from a packaged app, where AppData is virtualized) the
+        // logical folder differs from the real one, so load the model through its real path.
+        var model = FinalPath(Path.Combine(modelDirectory, YamnetModelManager.ModelFile));
+        _session = new InferenceSession(model);
         _input = _session.InputMetadata.Keys.Single();
         _output = _session.OutputMetadata.Keys.First();
         Labels = File.ReadAllLines(Path.Combine(modelDirectory, YamnetModelManager.LabelsFile))
@@ -64,6 +68,26 @@ internal sealed class YamnetClassifier : IDisposable
     }
 
     public IReadOnlyList<string> Labels { get; }
+
+    /// <summary>The path Windows actually opens (resolves redirection, links, 8.3 names); the input elsewhere.</summary>
+    private static string FinalPath(string path)
+    {
+        if (!OperatingSystem.IsWindows())
+            return path;
+        using var stream = File.OpenRead(path);
+        var buffer = new char[1024];
+        var length = GetFinalPathNameByHandle(stream.SafeFileHandle, buffer, (uint)buffer.Length, 0);
+        if (length == 0 || length >= buffer.Length)
+            return path;
+        var final = new string(buffer, 0, (int)length);
+        // "\\?\C:\..." → "C:\...", "\\?\UNC\server\share" → "\\server\share".
+        return final.StartsWith(@"\\?\UNC\", StringComparison.Ordinal) ? @"\\" + final[8..]
+            : final.StartsWith(@"\\?\", StringComparison.Ordinal) ? final[4..]
+            : final;
+    }
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
+    private static extern uint GetFinalPathNameByHandle(Microsoft.Win32.SafeHandles.SafeFileHandle file, char[] path, uint length, uint flags);
 
     /// <summary>Scores for one patch (96 frames × 64 mel bands, row-major). Thread-safe.</summary>
     public float[] Classify(float[] patch)

@@ -4,14 +4,24 @@ namespace Highlights.Core;
 
 /// <summary>
 /// Configuration shared by the CLI and the desktop app: defaults from appsettings.json next to the executable,
-/// personal settings and secrets from %APPDATA%\Highlights\appsettings.local.json, then HIGHLIGHTS_* env vars.
+/// personal settings and secrets from %USERPROFILE%\.highlights\settings.json, then HIGHLIGHTS_* env vars.
 /// </summary>
+/// <remarks>
+/// The user folder deliberately lives outside AppData: a process started from a packaged (MSIX) app gets AppData
+/// redirected into the package's private cache, so the CLI run from such a host and the desktop app started from
+/// Explorer or Visual Studio would silently see different settings, models and tools.
+/// </remarks>
 public static class HighlightsConfiguration
 {
+    /// <summary>Settings, downloaded models and tools: %USERPROFILE%\.highlights.</summary>
     public static string UserDirectory { get; } =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Highlights");
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".highlights");
 
-    public static string UserSettingsPath { get; } = Path.Combine(UserDirectory, "appsettings.local.json");
+    public static string UserSettingsPath { get; } = Path.Combine(UserDirectory, "settings.json");
+
+    /// <summary>Earlier location; copied over on first start.</summary>
+    private static string LegacySettingsPath { get; } =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Highlights", "appsettings.local.json");
 
     public static IConfigurationBuilder AddHighlightsConfiguration(this IConfigurationBuilder builder)
     {
@@ -24,12 +34,17 @@ public static class HighlightsConfiguration
             .AddEnvironmentVariables("HIGHLIGHTS_");
     }
 
-    /// <summary>Creates a commented template so users know where the API key and machine paths go.</summary>
+    /// <summary>Migrates the old settings file, or creates a commented template so users know where the key goes.</summary>
     private static void EnsureUserSettingsFile()
     {
         if (File.Exists(UserSettingsPath))
             return;
         Directory.CreateDirectory(UserDirectory);
+        if (File.Exists(LegacySettingsPath))
+        {
+            File.Copy(LegacySettingsPath, UserSettingsPath);
+            return;
+        }
         File.WriteAllText(UserSettingsPath, """
             {
               // Personal settings for the Highlights CLI and desktop app; override anything from appsettings.json.

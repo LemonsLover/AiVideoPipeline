@@ -38,7 +38,7 @@
                 <TextBlock Text="{Binding ProjectInfo}" Style="{StaticResource Muted}" />
             </StackPanel>
             <Button DockPanel.Dock="Right" Content="Settings" Command="{Binding OpenSettingsCommand}" Margin="6,0,0,0"
-                    ToolTip="Open %APPDATA%\Highlights\appsettings.local.json (API key, ffmpeg path, overrides)" />
+                    ToolTip="Open %USERPROFILE%\.highlights\settings.json (API key, ffmpeg path, overrides)" />
             <Button DockPanel.Dock="Right" Content="Project folder" Command="{Binding OpenProjectFolderCommand}" Margin="6,0,0,0"
                     IsEnabled="{Binding IsProjectOpen}" />
             <TextBlock DockPanel.Dock="Right" Text="{Binding CostText}" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0,0,10,0" />

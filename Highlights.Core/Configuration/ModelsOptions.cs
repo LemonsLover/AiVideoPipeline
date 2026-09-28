@@ -5,11 +5,11 @@ public sealed class ModelsOptions
 {
     public const string SectionName = "Models";
 
-    /// <summary>Empty = %LOCALAPPDATA%\Highlights\models.</summary>
+    /// <summary>Empty = %USERPROFILE%\.highlights\models.</summary>
     public string? Directory { get; set; }
 
     public string EffectiveDirectory =>
         string.IsNullOrWhiteSpace(Directory)
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Highlights", "models")
+            ? Path.Combine(HighlightsConfiguration.UserDirectory, "models")
             : Environment.ExpandEnvironmentVariables(Directory);
 }
