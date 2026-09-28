@@ -12,14 +12,14 @@ using Microsoft.Extensions.Options;
 namespace Highlights.Core.Stages.Postprocessing;
 
 /// <summary>Turns plan.json into clips.json: exact source segments per clip (padding, snapping, silence trimming).</summary>
-public sealed class PostprocessStage(EditModeStore modes, IOptions<PostprocessOptions> options, IOptions<VisionOptions> vision) : IPipelineStage
+public sealed class PostprocessStage(EditModeStore modes, IOptionsMonitor<PostprocessOptions> options, IOptionsMonitor<VisionOptions> vision) : IPipelineStage
 {
     public string Name => StageNames.Postprocess;
     public IReadOnlyList<string> DependsOn => [StageNames.Refine];
     public IReadOnlyList<string> Artifacts => [ProjectLayout.ClipsFile];
 
     public string DescribeInputs(HighlightsProject project) =>
-        ClipPlanner.From(modes.Load(modes.ResolveId(project)), options.Value) + "|" + vision.Value.ActionMotionFactor;
+        ClipPlanner.From(modes.Load(modes.ResolveId(project)), options.CurrentValue) + "|" + vision.CurrentValue.ActionMotionFactor;
 
     public async Task<IReadOnlyDictionary<string, string>> RunAsync(
         HighlightsProject project, IProgress<StageProgress> progress, CancellationToken cancellationToken)
@@ -35,7 +35,7 @@ public sealed class PostprocessStage(EditModeStore modes, IOptions<PostprocessOp
         var refine = await JsonDefaults.ReadAsync<RefineDocument>(project.PathOf(ProjectLayout.RefineFile), cancellationToken);
         var onScreen = await OnScreenActivityAsync(project, cancellationToken);
         var clips = ClipPlanner.Build(plan, moments.Moments.ToDictionary(m => m.Id), words, signals.Events, refine.Clips,
-            onScreen, duration, ClipPlanner.From(mode, options.Value));
+            onScreen, duration, ClipPlanner.From(mode, options.CurrentValue));
         var total = Math.Round(clips.Sum(c => c.Duration), 1);
         await JsonDefaults.WriteAtomicAsync(project.PathOf(ProjectLayout.ClipsFile), new ClipsDocument
         {
@@ -62,7 +62,7 @@ public sealed class PostprocessStage(EditModeStore modes, IOptions<PostprocessOp
         var ranges = new List<TimeRange>();
         if (File.Exists(project.PathOf(ProjectLayout.MotionFile)))
             ranges.AddRange((await JsonDefaults.ReadAsync<MotionTrack>(project.PathOf(ProjectLayout.MotionFile), cancellationToken))
-                .ActionRanges(vision.Value.ActionMotionFactor));
+                .ActionRanges(vision.CurrentValue.ActionMotionFactor));
         if (await Analysis.TimelineBuilder.LoadVisionAsync(project, cancellationToken) is { Enabled: true } v)
             ranges.AddRange(v.Events.Where(e => e.Importance >= 3).Select(e => new TimeRange(Math.Max(0, e.Time - 2), e.Time + 2)));
         return ranges;

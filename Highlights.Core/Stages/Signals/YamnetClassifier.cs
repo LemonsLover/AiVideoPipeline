@@ -8,14 +8,14 @@ using Microsoft.ML.OnnxRuntime;
 namespace Highlights.Core.Stages.Signals;
 
 /// <summary>Locates/downloads the YAMNet ONNX model (zip with yamnet.onnx, yamnet.data, labels.txt).</summary>
-public sealed class YamnetModelManager(ModelDownloader downloader, IOptions<AudioSignalsOptions> signals, IOptions<ModelsOptions> models)
+public sealed class YamnetModelManager(ModelDownloader downloader, IOptionsMonitor<AudioSignalsOptions> signals, IOptionsMonitor<ModelsOptions> models)
 {
     public const string ModelFile = "yamnet.onnx";
     public const string LabelsFile = "labels.txt";
 
     /// <summary>Model directory is keyed by the zip name, so a new URL gets its own folder.</summary>
     public string ModelDirectory =>
-        Path.Combine(models.Value.EffectiveDirectory, Path.GetFileNameWithoutExtension(new Uri(signals.Value.YamnetModelUrl).LocalPath));
+        Path.Combine(models.CurrentValue.EffectiveDirectory, Path.GetFileNameWithoutExtension(new Uri(signals.CurrentValue.YamnetModelUrl).LocalPath));
 
     public async Task<string> EnsureAsync(IProgress<StageProgress> progress, string stage, CancellationToken cancellationToken)
     {
@@ -24,7 +24,7 @@ public sealed class YamnetModelManager(ModelDownloader downloader, IOptions<Audi
             return dir;
 
         var zip = dir + ".zip";
-        await downloader.DownloadAsync(new Uri(signals.Value.YamnetModelUrl), zip, progress, stage, cancellationToken);
+        await downloader.DownloadAsync(new Uri(signals.CurrentValue.YamnetModelUrl), zip, progress, stage, cancellationToken);
         try
         {
             // Files may be nested in a folder inside the zip; flatten them into the model directory.
@@ -39,7 +39,7 @@ public sealed class YamnetModelManager(ModelDownloader downloader, IOptions<Audi
         }
 
         if (!File.Exists(Path.Combine(dir, ModelFile)) || !File.Exists(Path.Combine(dir, LabelsFile)))
-            throw new PipelineException($"YAMNet archive has no {ModelFile}/{LabelsFile}: {signals.Value.YamnetModelUrl}");
+            throw new PipelineException($"YAMNet archive has no {ModelFile}/{LabelsFile}: {signals.CurrentValue.YamnetModelUrl}");
         return dir;
     }
 }

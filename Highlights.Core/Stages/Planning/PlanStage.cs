@@ -17,8 +17,8 @@ namespace Highlights.Core.Stages.Planning;
 /// clips with in/out points, inner cuts, context captions and titles → plan.json.
 /// </summary>
 public sealed class PlanStage(
-    StructuredLlm llm, EditModeStore modes, PromptTemplates templates, IOptions<AnalyzeOptions> options,
-    IOptions<OpenRouterOptions> openRouter) : IPipelineStage
+    StructuredLlm llm, EditModeStore modes, PromptTemplates templates, IOptionsMonitor<AnalyzeOptions> options,
+    IOptionsMonitor<OpenRouterOptions> openRouter) : IPipelineStage
 {
     private const string SystemTemplate = "plan.system.md";
     private const string UserTemplate = "plan.user.md";
@@ -36,7 +36,8 @@ public sealed class PlanStage(
         var mode = modes.Load(id);
         return string.Join('|', id, PromptTemplates.FileHash(modes.PathOf(id)), project.Settings.TargetMinutes,
             Captions(project, mode), templates.HashOf(SystemTemplate), templates.HashOf(UserTemplate),
-            options.Value.OutputLanguage, string.Join(',', openRouter.Value.EffectiveModels));
+            options.CurrentValue.OutputLanguage, string.Join(',', openRouter.CurrentValue.ModelsFor(Name)), openRouter.CurrentValue.For(Name).Temperature ?? openRouter.CurrentValue.Temperature,
+            openRouter.CurrentValue.For(Name).MaxOutputTokens);
     }
 
     public async Task<IReadOnlyDictionary<string, string>> RunAsync(
@@ -101,7 +102,7 @@ public sealed class PlanStage(
     /// <summary>Builds the prompt (also used by the CLI's --dry-run).</summary>
     public async Task<Prompt> BuildPromptAsync(HighlightsProject project, CancellationToken cancellationToken)
     {
-        var o = options.Value;
+        var o = options.CurrentValue;
         var modeId = modes.ResolveId(project);
         var mode = modes.Load(modeId);
         var captions = Captions(project, mode);

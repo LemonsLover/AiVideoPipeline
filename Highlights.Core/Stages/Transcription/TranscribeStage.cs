@@ -11,7 +11,7 @@ namespace Highlights.Core.Stages.Transcription;
 
 /// <summary>Transcribes audio.wav with Whisper.net into transcript.json (segments + optional word timings).</summary>
 public sealed class TranscribeStage(
-    WhisperModelManager models, IOptions<WhisperOptions> options, ILogger<TranscribeStage> logger) : IPipelineStage
+    WhisperModelManager models, IOptionsMonitor<WhisperOptions> options, ILogger<TranscribeStage> logger) : IPipelineStage
 {
     private const int BytesPerSecond = ExtractStage.SampleRate * 2; // mono s16le
 
@@ -21,7 +21,7 @@ public sealed class TranscribeStage(
 
     public string DescribeInputs(HighlightsProject project)
     {
-        var o = options.Value;
+        var o = options.CurrentValue;
         return string.Join('|', Model(project), Language(project), o.WordTimestamps, o.Prompt, o.NoContext,
             o.MaxConsecutiveRepeats, string.Join('/', o.EffectiveHallucinationFilters));
     }
@@ -29,7 +29,7 @@ public sealed class TranscribeStage(
     public async Task<IReadOnlyDictionary<string, string>> RunAsync(
         HighlightsProject project, IProgress<StageProgress> progress, CancellationToken cancellationToken)
     {
-        var o = options.Value;
+        var o = options.CurrentValue;
         var model = Model(project);
         var language = Language(project);
         var modelPath = await models.EnsureAsync(model, progress, Name, cancellationToken);
@@ -102,8 +102,8 @@ public sealed class TranscribeStage(
         };
     }
 
-    private string Model(HighlightsProject project) => project.Settings.WhisperModel ?? options.Value.Model;
-    private string Language(HighlightsProject project) => project.Settings.Language ?? options.Value.Language;
+    private string Model(HighlightsProject project) => project.Settings.WhisperModel ?? options.CurrentValue.Model;
+    private string Language(HighlightsProject project) => project.Settings.Language ?? options.CurrentValue.Language;
 
     /// <summary>The native library is loaded once per process, so the order only matters before the first load.</summary>
     private static void ConfigureRuntimes(IReadOnlyList<RuntimeLibrary> order)

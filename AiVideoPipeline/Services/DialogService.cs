@@ -16,6 +16,9 @@ public interface IDialogService
 
     void ShowError(string message);
 
+    /// <summary>Shows a pipeline step's settings; true when they were saved.</summary>
+    bool EditStageSettings(ViewModels.StageSettingsViewModel settings);
+
     /// <summary>Opens a file or folder with its default application (Explorer, player, editor).</summary>
     void OpenInShell(string path);
 }
@@ -44,6 +47,9 @@ public sealed class DialogService : IDialogService
     public bool Confirm(string message, string title) =>
         MessageBox.Show(Application.Current.MainWindow!, message, title, MessageBoxButton.YesNo, MessageBoxImage.Question)
         == MessageBoxResult.Yes;
+
+    public bool EditStageSettings(ViewModels.StageSettingsViewModel settings) =>
+        new StageSettingsWindow(settings) { Owner = Application.Current.MainWindow }.ShowDialog() == true;
 
     public void ShowError(string message) =>
         MessageBox.Show(Application.Current.MainWindow!, message, "Highlights", MessageBoxButton.OK, MessageBoxImage.Error);

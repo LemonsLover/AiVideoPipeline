@@ -30,7 +30,23 @@ public sealed class OpenRouterOptions
     /// <summary>Sent as X-Title so requests are identifiable in the OpenRouter dashboard.</summary>
     public string AppName { get; set; } = "Highlights";
 
+    /// <summary>Per pipeline step (analyze, plan, describe, vision, refine): models, temperature, output limit.</summary>
+    public Dictionary<string, LlmStageOptions> Stages { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public LlmStageOptions For(string stage) => Stages.GetValueOrDefault(stage) ?? new LlmStageOptions();
+
+    /// <summary>The step's models, else the general list.</summary>
+    public IReadOnlyList<string> ModelsFor(string stage) => For(stage).Models is { Length: > 0 } m ? m : EffectiveModels;
+
     public IReadOnlyList<string> EffectiveModels => Models is { Length: > 0 }
         ? Models
         : ["anthropic/claude-opus-5.5", "anthropic/claude-sonnet-5", "google/gemini-3.8-flash"];
+}
+
+/// <summary>Overrides for one pipeline step; null = the general OpenRouter setting.</summary>
+public sealed class LlmStageOptions
+{
+    public string[]? Models { get; set; }
+    public double? Temperature { get; set; }
+    public int? MaxOutputTokens { get; set; }
 }

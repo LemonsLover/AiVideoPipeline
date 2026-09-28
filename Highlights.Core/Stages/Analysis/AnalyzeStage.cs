@@ -15,7 +15,7 @@ namespace Highlights.Core.Stages.Analysis;
 /// Independent of the editing mode, so switching modes only re-runs the plan.
 /// </summary>
 public sealed class AnalyzeStage(
-    StructuredLlm llm, PromptTemplates templates, IOptions<AnalyzeOptions> options, IOptions<OpenRouterOptions> openRouter)
+    StructuredLlm llm, PromptTemplates templates, IOptionsMonitor<AnalyzeOptions> options, IOptionsMonitor<OpenRouterOptions> openRouter)
     : IPipelineStage
 {
     public static readonly string[] Kinds = ["funny", "reaction", "epic", "story", "banter"];
@@ -30,9 +30,10 @@ public sealed class AnalyzeStage(
 
     public string DescribeInputs(HighlightsProject project)
     {
-        var o = options.Value;
+        var o = options.CurrentValue;
         return string.Join('|', templates.HashOf(SystemTemplate), templates.HashOf(UserTemplate), o.OutputLanguage,
-            o.MinLoudPeakDb, string.Join(',', openRouter.Value.EffectiveModels));
+            o.MinLoudPeakDb, string.Join(',', openRouter.CurrentValue.ModelsFor(Name)), openRouter.CurrentValue.For(Name).Temperature ?? openRouter.CurrentValue.Temperature,
+            openRouter.CurrentValue.For(Name).MaxOutputTokens);
     }
 
     public async Task<IReadOnlyDictionary<string, string>> RunAsync(
@@ -69,7 +70,7 @@ public sealed class AnalyzeStage(
         {
             Model = result.Model,
             Game = result.Value.Game.Trim(),
-            Language = options.Value.OutputLanguage,
+            Language = options.CurrentValue.OutputLanguage,
             Summary = result.Value.Summary.Trim(),
             Moments = moments,
         }, cancellationToken);
@@ -90,7 +91,7 @@ public sealed class AnalyzeStage(
     public async Task<(double Duration, IReadOnlyList<LlmMessage> Messages)> BuildPromptAsync(
         HighlightsProject project, CancellationToken cancellationToken)
     {
-        var o = options.Value;
+        var o = options.CurrentValue;
         var transcript = await JsonDefaults.ReadAsync<Transcript>(project.PathOf(ProjectLayout.TranscriptFile), cancellationToken);
         var signals = await JsonDefaults.ReadAsync<AudioSignals>(project.PathOf(ProjectLayout.SignalsFile), cancellationToken);
         var duration = Math.Max(transcript.DurationSeconds, signals.DurationSeconds);

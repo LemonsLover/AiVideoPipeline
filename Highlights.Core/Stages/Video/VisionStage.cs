@@ -30,7 +30,8 @@ public sealed record VisionEvent(double Time, string Type, string Description, i
 /// discoveries, fails — so moments without talk are found and clips can start where the action starts.
 /// </summary>
 public sealed class VisionStage(
-    StructuredLlm llm, PromptTemplates templates, IOptions<VisionOptions> options, IOptions<AnalyzeOptions> analyze)
+    StructuredLlm llm, PromptTemplates templates, IOptionsMonitor<VisionOptions> options, IOptionsMonitor<AnalyzeOptions> analyze,
+    IOptionsMonitor<OpenRouterOptions> openRouter)
     : IPipelineStage
 {
     public static readonly string[] EventTypes =
@@ -44,17 +45,17 @@ public sealed class VisionStage(
 
     public string DescribeInputs(HighlightsProject project)
     {
-        var o = options.Value;
+        var o = options.CurrentValue;
         return o.Enabled
-            ? string.Join('|', o.OverviewIntervalSeconds, o.OverviewBatchFrames, o.OverviewLowDetail, string.Join(',', o.EffectiveModels),
-                templates.HashOf(SystemTemplate), analyze.Value.OutputLanguage)
+            ? string.Join('|', o.OverviewIntervalSeconds, o.OverviewBatchFrames, o.OverviewLowDetail, Llm(),
+                templates.HashOf(SystemTemplate), analyze.CurrentValue.OutputLanguage)
             : "disabled";
     }
 
     public async Task<IReadOnlyDictionary<string, string>> RunAsync(
         HighlightsProject project, IProgress<StageProgress> progress, CancellationToken cancellationToken)
     {
-        var o = options.Value;
+        var o = options.CurrentValue;
         if (!o.Enabled)
         {
             await JsonDefaults.WriteAtomicAsync(project.PathOf(ProjectLayout.VisionFile), new VisionDocument { Enabled = false }, cancellationToken);
@@ -69,7 +70,7 @@ public sealed class VisionStage(
         var batches = times.Chunk(o.OverviewBatchFrames).ToList();
         var system = await templates.RenderAsync(SystemTemplate, new Dictionary<string, string>
         {
-            ["output_language"] = analyze.Value.OutputLanguage,
+            ["output_language"] = analyze.CurrentValue.OutputLanguage,
             ["interval"] = o.OverviewIntervalSeconds.ToString(CultureInfo.InvariantCulture),
         }, cancellationToken);
 
@@ -103,7 +104,7 @@ public sealed class VisionStage(
                         lock (usageLock)
                             project.LlmUsage.Add(new LlmUsageRecord(Name, model, usage.PromptTokens, usage.CompletionTokens, usage.CostUsd, DateTimeOffset.Now));
                     },
-                    cancellationToken, o.EffectiveModels);
+                    cancellationToken);
 
                 results[index] = (new VisionWindow(from, to, result.Value.Summary.Trim()),
                     result.Value.Events.Select(e => new VisionEvent(Math.Round(e.Time, 1), e.Type, e.Description.Trim(), e.Importance)).ToList(),
@@ -136,6 +137,14 @@ public sealed class VisionStage(
             ["model"] = results.Select(r => r.Model).FirstOrDefault() ?? "",
             ["costUsd"] = cost.ToString("0.####", CultureInfo.InvariantCulture),
         };
+    }
+
+    /// <summary>The step's LLM settings, for the inputs hash.</summary>
+    private string Llm()
+    {
+        var o = openRouter.CurrentValue;
+        var step = o.For(Name);
+        return $"{string.Join(',', o.ModelsFor(Name))}|{step.Temperature ?? o.Temperature}|{step.MaxOutputTokens ?? o.MaxOutputTokens}";
     }
 
     private static string? Validate(LlmVisionAnswer answer, double from, double to)

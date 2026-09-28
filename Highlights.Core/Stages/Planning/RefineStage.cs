@@ -27,7 +27,8 @@ public sealed record RefinedEdges(double Start, double End, string Reason);
 /// them so the on-screen action is visible — not only the reaction to it.
 /// </summary>
 public sealed class RefineStage(
-    StructuredLlm llm, PromptTemplates templates, IOptions<VisionOptions> options) : IPipelineStage
+    StructuredLlm llm, PromptTemplates templates, IOptionsMonitor<VisionOptions> options, IOptionsMonitor<OpenRouterOptions> openRouter)
+    : IPipelineStage
 {
     private const string SystemTemplate = "refine.system.md";
     private const int LookAfterStartSeconds = 5, LookBeforeEndSeconds = 4;
@@ -38,17 +39,20 @@ public sealed class RefineStage(
 
     public string DescribeInputs(HighlightsProject project)
     {
-        var o = options.Value;
-        return o.Enabled
-            ? string.Join('|', o.RefineLeadInSeconds, o.RefineTailSeconds, string.Join(',', o.EffectiveModels), templates.HashOf(SystemTemplate))
+        var o = options.CurrentValue;
+        var llm = openRouter.CurrentValue;
+        var step = llm.For(Name);
+        return o.Enabled && o.RefineEnabled
+            ? string.Join('|', o.RefineLeadInSeconds, o.RefineTailSeconds, string.Join(',', llm.ModelsFor(Name)),
+                step.Temperature ?? llm.Temperature, templates.HashOf(SystemTemplate))
             : "disabled";
     }
 
     public async Task<IReadOnlyDictionary<string, string>> RunAsync(
         HighlightsProject project, IProgress<StageProgress> progress, CancellationToken cancellationToken)
     {
-        var o = options.Value;
-        if (!o.Enabled)
+        var o = options.CurrentValue;
+        if (!o.Enabled || !o.RefineEnabled)
         {
             await JsonDefaults.WriteAtomicAsync(project.PathOf(ProjectLayout.RefineFile), new RefineDocument { Enabled = false }, cancellationToken);
             return new Dictionary<string, string> { ["enabled"] = "false" };
@@ -89,7 +93,7 @@ public sealed class RefineStage(
                         lock (usageLock)
                             project.LlmUsage.Add(new LlmUsageRecord(Name, model, usage.PromptTokens, usage.CompletionTokens, usage.CostUsd, DateTimeOffset.Now));
                     },
-                    cancellationToken, o.EffectiveModels);
+                    cancellationToken);
 
                 lock (usageLock)
                     refined[clip.Id] = new RefinedEdges(Math.Round(result.Value.Start, 1), Math.Round(result.Value.End, 1), result.Value.Reason.Trim());

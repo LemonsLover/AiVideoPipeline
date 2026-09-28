@@ -17,8 +17,8 @@ namespace Highlights.Core.Stages.Rendering;
 /// (with crossfades, so they match highlights.mp4).
 /// </summary>
 public sealed class DescribeStage(
-    StructuredLlm llm, EditModeStore modes, PromptTemplates templates, IOptions<AnalyzeOptions> analyze,
-    IOptions<RenderOptions> render, IOptions<OpenRouterOptions> openRouter) : IPipelineStage
+    StructuredLlm llm, EditModeStore modes, PromptTemplates templates, IOptionsMonitor<AnalyzeOptions> analyze,
+    IOptionsMonitor<RenderOptions> render, IOptionsMonitor<OpenRouterOptions> openRouter) : IPipelineStage
 {
     private const string SystemTemplate = "describe.system.md";
     private const string UserTemplate = "describe.user.md";
@@ -35,8 +35,9 @@ public sealed class DescribeStage(
     {
         return string.Join('|', ReviewService.EditHash(project),
             PromptTemplates.FileHash(project.PathOf(ProjectLayout.MomentsFile)), modes.ResolveId(project),
-            templates.HashOf(SystemTemplate), templates.HashOf(UserTemplate), analyze.Value.OutputLanguage,
-            render.Value.CrossfadeSeconds, render.Value.InnerCrossfadeSeconds, string.Join(',', openRouter.Value.EffectiveModels));
+            templates.HashOf(SystemTemplate), templates.HashOf(UserTemplate), analyze.CurrentValue.OutputLanguage,
+            render.CurrentValue.CrossfadeSeconds, render.CurrentValue.InnerCrossfadeSeconds, string.Join(',', openRouter.CurrentValue.ModelsFor(Name)), openRouter.CurrentValue.For(Name).Temperature ?? openRouter.CurrentValue.Temperature,
+            openRouter.CurrentValue.For(Name).MaxOutputTokens);
     }
 
     public async Task<IReadOnlyDictionary<string, string>> RunAsync(
@@ -46,7 +47,7 @@ public sealed class DescribeStage(
         var moments = await JsonDefaults.ReadAsync<MomentsDocument>(project.PathOf(ProjectLayout.MomentsFile), cancellationToken);
         var byId = moments.Moments.ToDictionary(m => m.Id);
         var mode = modes.Load(modes.ResolveId(project));
-        var plan = RenderPlan.Create(edit.Clips, render.Value.CrossfadeSeconds, render.Value.InnerCrossfadeSeconds);
+        var plan = RenderPlan.Create(edit.Clips, render.CurrentValue.CrossfadeSeconds, render.CurrentValue.InnerCrossfadeSeconds);
 
         var clipList = new StringBuilder();
         foreach (var clip in edit.Clips)
@@ -64,7 +65,7 @@ public sealed class DescribeStage(
         {
             ["game_name"] = string.IsNullOrWhiteSpace(moments.Game) ? "a video game" : moments.Game,
             ["mode_name"] = mode.Name,
-            ["output_language"] = analyze.Value.OutputLanguage,
+            ["output_language"] = analyze.CurrentValue.OutputLanguage,
             ["session_summary"] = moments.Summary,
             ["clips"] = clipList.ToString(),
             ["duration"] = FormatTime(plan.TotalSeconds),

@@ -47,22 +47,57 @@ public sealed record EditMode
             : Math.Round(Math.Clamp(sessionSeconds / 60 * TargetFraction, MinMinutes, MaxMinutes), 1);
 }
 
-public sealed class EditModeStore(IOptions<AnalyzeOptions> options)
+/// <summary>
+/// Editing modes: built-in ones in Modes/ next to the executable (the defaults), user-edited copies in
+/// %USERPROFILE%\.highlights\modes (they win; a new file there adds a mode).
+/// </summary>
+public sealed class EditModeStore(IOptionsMonitor<AnalyzeOptions> options)
 {
-    public string Directory => options.Value.ResolveDirectory(options.Value.ModesDirectory);
+    public string Directory => options.CurrentValue.ResolveDirectory(options.CurrentValue.ModesDirectory);
 
     public IReadOnlyList<string> List() =>
-        System.IO.Directory.Exists(Directory)
-            ? System.IO.Directory.EnumerateFiles(Directory, "*.json").Select(f => Path.GetFileNameWithoutExtension(f)).Order().ToList()
-            : [];
+        new[] { Directory, HighlightsConfiguration.UserModesDirectory }
+            .Where(System.IO.Directory.Exists)
+            .SelectMany(d => System.IO.Directory.EnumerateFiles(d, "*.json"))
+            .Select(f => Path.GetFileNameWithoutExtension(f))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Order()
+            .ToList();
 
-    public string ResolveId(HighlightsProject project) => project.Settings.Mode ?? options.Value.DefaultMode;
+    public string ResolveId(HighlightsProject project) => project.Settings.Mode ?? options.CurrentValue.DefaultMode;
 
-    public string PathOf(string id) => Path.Combine(Directory, id + ".json");
+    public string DefaultMode => options.CurrentValue.DefaultMode;
 
-    public EditMode Load(string id)
+    /// <summary>The mode file in effect: the user's edited copy if there is one, else the built-in one.</summary>
+    public string PathOf(string id) => File.Exists(UserPathOf(id)) ? UserPathOf(id) : DefaultPathOf(id);
+
+    public string DefaultPathOf(string id) => Path.Combine(Directory, id + ".json");
+
+    public static string UserPathOf(string id) => Path.Combine(HighlightsConfiguration.UserModesDirectory, id + ".json");
+
+    public bool IsOverridden(string id) => File.Exists(UserPathOf(id));
+
+    public EditMode Load(string id) => LoadFrom(PathOf(id), id);
+
+    /// <summary>The built-in version (null for a mode that only exists as a user file).</summary>
+    public EditMode? LoadDefault(string id) => File.Exists(DefaultPathOf(id)) ? LoadFrom(DefaultPathOf(id), id) : null;
+
+    /// <summary>Saves an edited mode; identical to the built-in one removes the override.</summary>
+    public void Save(string id, EditMode mode)
     {
-        var path = PathOf(id);
+        if (LoadDefault(id) is { } builtIn && JsonSerializer.Serialize(builtIn, JsonDefaults.Options) == JsonSerializer.Serialize(mode, JsonDefaults.Options))
+        {
+            Reset(id);
+            return;
+        }
+        System.IO.Directory.CreateDirectory(HighlightsConfiguration.UserModesDirectory);
+        File.WriteAllText(UserPathOf(id), JsonSerializer.Serialize(mode, JsonDefaults.Options));
+    }
+
+    public void Reset(string id) => File.Delete(UserPathOf(id));
+
+    private EditMode LoadFrom(string path, string id)
+    {
         if (!File.Exists(path))
             throw new PipelineException($"Editing mode '{id}' not found in {Directory}. Available: {string.Join(", ", List())}");
         try

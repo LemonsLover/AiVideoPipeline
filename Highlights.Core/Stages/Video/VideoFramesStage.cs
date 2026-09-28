@@ -11,7 +11,7 @@ namespace Highlights.Core.Stages.Video;
 /// One decoding pass over the video: a JPEG per second (for the vision passes) and a motion curve at 2 fps
 /// (how much the picture changes — fights, running, explosions vs. standing still).
 /// </summary>
-public sealed class VideoFramesStage(IFfmpegRunner ffmpeg, IOptions<VisionOptions> options) : IPipelineStage
+public sealed class VideoFramesStage(IFfmpegRunner ffmpeg, IOptionsMonitor<VisionOptions> options) : IPipelineStage
 {
     private const int MotionFps = 2, MotionWidth = 160, MotionHeight = 90;
 
@@ -24,13 +24,13 @@ public sealed class VideoFramesStage(IFfmpegRunner ffmpeg, IOptions<VisionOption
         var video = new FileInfo(project.ResolveVideoPath());
         if (!video.Exists)
             throw new PipelineException($"Video not found: {video.FullName}");
-        return string.Join('|', video.Name, video.Length, video.LastWriteTimeUtc.Ticks, options.Value.FrameWidth, options.Value.JpegQuality);
+        return string.Join('|', video.Name, video.Length, video.LastWriteTimeUtc.Ticks, options.CurrentValue.FrameWidth, options.CurrentValue.JpegQuality);
     }
 
     public async Task<IReadOnlyDictionary<string, string>> RunAsync(
         HighlightsProject project, IProgress<StageProgress> progress, CancellationToken cancellationToken)
     {
-        var o = options.Value;
+        var o = options.CurrentValue;
         var framesDir = project.PathOf(ProjectLayout.FramesDirectory);
         if (Directory.Exists(framesDir))
             Directory.Delete(framesDir, recursive: true);

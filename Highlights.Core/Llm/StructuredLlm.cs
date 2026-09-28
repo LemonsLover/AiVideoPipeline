@@ -18,21 +18,22 @@ public sealed record StructuredResult<T>(T Value, string Model, IReadOnlyList<Ll
 /// otherwise the schema in the prompt; malformed/invalid output is sent back with the error for repair;
 /// on provider errors or exhausted repairs the next model in the fallback list is tried.
 /// </summary>
-public sealed class StructuredLlm(ILlmClient client, IOptions<OpenRouterOptions> options, ILogger<StructuredLlm> logger)
+public sealed class StructuredLlm(ILlmClient client, IOptionsMonitor<OpenRouterOptions> options, ILogger<StructuredLlm> logger)
 {
     /// <param name="validate">Returns an error message for the model, or null when the value is acceptable.</param>
     /// <param name="onCall">Called after every paid call (including failed attempts), with the model id.</param>
-    /// <param name="models">Fallback chain to use instead of OpenRouter:Models (e.g. vision-capable models).</param>
+    /// <param name="models">Fallback chain to use instead of OpenRouter:Stages:&lt;stage&gt;:Models / OpenRouter:Models.</param>
     public async Task<StructuredResult<T>> CompleteAsync<T>(
         IReadOnlyList<LlmMessage> messages, LlmJsonSchema schema, Func<T, string?> validate,
         IProgress<StageProgress> progress, string stage, Action<string, LlmUsage>? onCall, CancellationToken cancellationToken,
         IReadOnlyList<string>? models = null)
     {
-        var o = options.Value;
+        var o = options.CurrentValue;
         var calls = new List<LlmUsage>();
         var failures = new List<string>();
 
-        foreach (var model in models ?? o.EffectiveModels)
+        var step = o.For(stage);
+        foreach (var model in models ?? o.ModelsFor(stage))
         {
             LlmModelInfo? info;
             try
@@ -61,8 +62,8 @@ public sealed class StructuredLlm(ILlmClient client, IOptions<OpenRouterOptions>
                 {
                     Model = model,
                     Messages = conversation,
-                    Temperature = o.Temperature is { } t && info?.Supports("temperature") == true ? t : null,
-                    MaxOutputTokens = info is null || info.Supports("max_tokens") ? o.MaxOutputTokens : null,
+                    Temperature = (step.Temperature ?? o.Temperature) is { } t && info?.Supports("temperature") == true ? t : null,
+                    MaxOutputTokens = info is null || info.Supports("max_tokens") ? step.MaxOutputTokens ?? o.MaxOutputTokens : null,
                     JsonSchema = useSchema ? schema : null,
                 };
 

@@ -5,11 +5,8 @@ public sealed class VisionOptions
 {
     public const string SectionName = "Vision";
 
-    /// <summary>Off = no frames are sent to an LLM (motion and game sounds are still used).</summary>
+    /// <summary>Off = no frames are sent to an LLM (motion and game sounds are still used). Models: OpenRouter:Stages:vision.</summary>
     public bool Enabled { get; set; } = true;
-
-    /// <summary>Vision-capable models, primary first.</summary>
-    public string[]? Models { get; set; }
 
     /// <summary>Frames kept on disk for the vision passes (1 per second, this wide).</summary>
     public int FrameWidth { get; set; } = 512;
@@ -32,6 +29,9 @@ public sealed class VisionOptions
     /// <summary>Overview requests sent at the same time.</summary>
     public int MaxParallelRequests { get; set; } = 3;
 
+    /// <summary>Refine pass on/off (models: OpenRouter:Stages:refine).</summary>
+    public bool RefineEnabled { get; set; } = true;
+
     /// <summary>Refine pass: seconds of footage before a clip's in point the model looks at (1 frame/s).</summary>
     public int RefineLeadInSeconds { get; set; } = 20;
 
@@ -40,8 +40,4 @@ public sealed class VisionOptions
 
     /// <summary>Motion above this multiple of the median counts as on-screen action (protects it from pause trimming).</summary>
     public double ActionMotionFactor { get; set; } = 2.5;
-
-    public IReadOnlyList<string> EffectiveModels => Models is { Length: > 0 }
-        ? Models
-        : ["google/gemini-3.8-flash", "anthropic/claude-sonnet-5"];
 }

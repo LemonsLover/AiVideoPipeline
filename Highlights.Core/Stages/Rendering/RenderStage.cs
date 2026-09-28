@@ -11,7 +11,7 @@ using Microsoft.Extensions.Options;
 namespace Highlights.Core.Stages.Rendering;
 
 /// <summary>Renders edit.json into highlights.mp4 (1080p, crossfades, loudness normalization, chapters).</summary>
-public sealed class RenderStage(IFfmpegRunner ffmpeg, IOptions<RenderOptions> options, ILogger<RenderStage> logger) : IPipelineStage
+public sealed class RenderStage(IFfmpegRunner ffmpeg, IOptionsMonitor<RenderOptions> options, ILogger<RenderStage> logger) : IPipelineStage
 {
     private const string WorkDirectory = "render.tmp";
     private bool? _nvencAvailable;
@@ -22,17 +22,16 @@ public sealed class RenderStage(IFfmpegRunner ffmpeg, IOptions<RenderOptions> op
 
     public string DescribeInputs(HighlightsProject project)
     {
-        var o = options.Value;
-        return string.Join('|', ReviewService.EditHash(project), o.Width, o.Height, FrameRate(project), o.CrossfadeSeconds,
-            o.InnerCrossfadeSeconds, o.Encoder, o.NvencPreset, o.NvencCq, o.X264Preset, o.X264Crf, o.AudioBitrate, o.LoudnessLufs,
-            o.TruePeakDb, string.Join(',', o.EffectiveAudioTracks), Titles(project), o.TitleSeconds, o.TitleFont, o.TitleFontSize,
-            o.CaptionSeconds, o.CaptionFontSize);
+        var o = options.CurrentValue;
+        // Every render setting counts: serialize them all rather than listing them one by one.
+        return string.Join('|', ReviewService.EditHash(project), FrameRate(project), Titles(project),
+            System.Text.Json.JsonSerializer.Serialize(o));
     }
 
     public async Task<IReadOnlyDictionary<string, string>> RunAsync(
         HighlightsProject project, IProgress<StageProgress> progress, CancellationToken cancellationToken)
     {
-        var o = options.Value;
+        var o = options.CurrentValue;
         var edit = await JsonDefaults.ReadAsync<EditDocument>(project.PathOf(ProjectLayout.EditFile), cancellationToken);
         var plan = RenderPlan.Create(edit.Clips, o.CrossfadeSeconds, o.InnerCrossfadeSeconds);
         var trackCount = project.Media?.AudioTracks.Count ?? 0;
@@ -58,9 +57,9 @@ public sealed class RenderStage(IFfmpegRunner ffmpeg, IOptions<RenderOptions> op
             for (var i = 0; i < plan.Clips.Count; i++)
             {
                 if (titles)
-                    titleFiles[i] = await WriteTextAsync(work, $"title{i:000}.txt", plan.Clips[i].Title, cancellationToken);
-                if (plan.Clips[i].Caption is { Length: > 0 } caption)
-                    captionFiles[i] = await WriteTextAsync(work, $"caption{i:000}.txt", caption, cancellationToken);
+                    titleFiles[i] = await WriteTextAsync(work, $"title{i:000}.txt", plan.Clips[i].Title, o.MaxLineChars, cancellationToken);
+                if (o.Captions && plan.Clips[i].Caption is { Length: > 0 } caption)
+                    captionFiles[i] = await WriteTextAsync(work, $"caption{i:000}.txt", caption, o.MaxLineChars, cancellationToken);
             }
 
             string? font = null;
@@ -74,7 +73,9 @@ public sealed class RenderStage(IFfmpegRunner ffmpeg, IOptions<RenderOptions> op
 
             var graph = FilterGraphBuilder.Build(plan, new FilterGraphBuilder.Settings(
                 o.Width, o.Height, FrameRate(project), o.EffectiveAudioTracks, titleFiles, captionFiles, font,
-                o.TitleFontSize, o.TitleSeconds, o.CaptionFontSize, o.CaptionSeconds));
+                new FilterGraphBuilder.TextStyle(o.TitleFontSize, o.TitleSeconds, o.TitlePosition, o.TitleColor, o.TitleBoxOpacity),
+                new FilterGraphBuilder.TextStyle(o.CaptionFontSize, o.CaptionSeconds, o.CaptionPosition, o.CaptionColor, o.CaptionBoxOpacity),
+                Transition(o.ClipTransition), Transition(o.InnerTransition), o.FadeInSeconds, o.FadeOutSeconds));
             await File.WriteAllTextAsync(Path.Combine(work, "filter.txt"), graph, new UTF8Encoding(false), cancellationToken);
             await File.WriteAllTextAsync(Path.Combine(work, "chapters.txt"), ChaptersMetadata(plan), new UTF8Encoding(false), cancellationToken);
 
@@ -154,14 +155,14 @@ public sealed class RenderStage(IFfmpegRunner ffmpeg, IOptions<RenderOptions> op
         };
     }
 
-    private bool Titles(HighlightsProject project) => project.Settings.Titles ?? options.Value.Titles;
+    private bool Titles(HighlightsProject project) => project.Settings.Titles ?? options.CurrentValue.Titles;
 
     private double FrameRate(HighlightsProject project) =>
-        options.Value.FrameRate ?? Math.Round(Math.Min(60, project.Media?.Video?.FrameRate ?? 30), 3);
+        options.CurrentValue.FrameRate ?? Math.Round(Math.Min(60, project.Media?.Video?.FrameRate ?? 30), 3);
 
     private async Task<string> ResolveEncoderAsync(CancellationToken cancellationToken)
     {
-        var mode = options.Value.Encoder.ToLowerInvariant();
+        var mode = options.CurrentValue.Encoder.ToLowerInvariant();
         if (mode is "x264" or "libx264")
             return "x264";
 
@@ -196,14 +197,17 @@ public sealed class RenderStage(IFfmpegRunner ffmpeg, IOptions<RenderOptions> op
         return sb.ToString();
     }
 
-    private static async Task<string> WriteTextAsync(string directory, string name, string text, CancellationToken cancellationToken)
+    /// <summary>drawtext doesn't wrap: the text is broken into lines here (~55 characters of 44 px bold ≈ 2/3 of 1080p).</summary>
+    private static async Task<string> WriteTextAsync(string directory, string name, string text, int maxLineChars,
+        CancellationToken cancellationToken)
     {
-        await File.WriteAllTextAsync(Path.Combine(directory, name), Wrap(text, MaxLineChars), new UTF8Encoding(false), cancellationToken);
+        await File.WriteAllTextAsync(Path.Combine(directory, name), Wrap(text, Math.Max(10, maxLineChars)), new UTF8Encoding(false), cancellationToken);
         return name;
     }
 
-    /// <summary>drawtext doesn't wrap: ~55 characters of 44 px bold text is about 2/3 of a 1080p frame.</summary>
-    private const int MaxLineChars = 55;
+    /// <summary>A known xfade transition name; anything else falls back to "fade" so a typo can't break the render.</summary>
+    private static string Transition(string name) =>
+        RenderOptions.Transitions.Contains(name, StringComparer.OrdinalIgnoreCase) ? name.ToLowerInvariant() : "fade";
 
     /// <summary>Breaks text into lines of at most <paramref name="max"/> characters at word boundaries, balancing two lines.</summary>
     internal static string Wrap(string text, int max)

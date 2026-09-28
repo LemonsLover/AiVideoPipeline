@@ -10,7 +10,7 @@ namespace Highlights.Core.Stages.Signals;
 /// Computes loudness over time and YAMNet sound-class scores (laughter, screams, ...) for the voice track,
 /// and derives events from them. Writes signals.json.
 /// </summary>
-public sealed class AudioSignalsStage(YamnetModelManager models, IOptions<AudioSignalsOptions> options) : IPipelineStage
+public sealed class AudioSignalsStage(YamnetModelManager models, IOptionsMonitor<AudioSignalsOptions> options) : IPipelineStage
 {
     public string Name => StageNames.AudioSignals;
     public IReadOnlyList<string> DependsOn => [StageNames.Extract];
@@ -18,7 +18,7 @@ public sealed class AudioSignalsStage(YamnetModelManager models, IOptions<AudioS
 
     public string DescribeInputs(HighlightsProject project)
     {
-        var o = options.Value;
+        var o = options.CurrentValue;
         static string Describe(IReadOnlyDictionary<string, string[]> groups) =>
             string.Join(';', groups.OrderBy(g => g.Key).Select(g => $"{g.Key}={string.Join(',', g.Value)}"));
         return string.Join('|', o.YamnetModelUrl, Describe(o.EffectiveClassGroups), Describe(o.EffectiveContextGroups), o.LoudnessWindowSeconds, o.LoudSpikeDb, o.BaselineWindowSeconds,
@@ -28,7 +28,7 @@ public sealed class AudioSignalsStage(YamnetModelManager models, IOptions<AudioS
     public async Task<IReadOnlyDictionary<string, string>> RunAsync(
         HighlightsProject project, IProgress<StageProgress> progress, CancellationToken cancellationToken)
     {
-        var o = options.Value;
+        var o = options.CurrentValue;
         var modelDir = await models.EnsureAsync(progress, Name, cancellationToken);
 
         progress.Report(new StageProgress(Name, 0, "reading audio"));

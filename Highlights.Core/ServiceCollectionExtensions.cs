@@ -56,6 +56,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<StructuredLlm>();
         services.AddSingleton<EditModeStore>();
         services.AddSingleton<PromptTemplates>();
+        services.AddSingleton<Settings.SettingsStore>();
 
         services.AddSingleton<IPipelineStage, ExtractStage>();
         services.AddSingleton<IPipelineStage, TranscribeStage>();

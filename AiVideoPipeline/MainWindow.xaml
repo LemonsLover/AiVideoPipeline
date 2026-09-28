@@ -75,6 +75,7 @@
                                         <ColumnDefinition Width="12" />
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <Ellipse Width="8" Height="8" VerticalAlignment="Top" Margin="0,5,0,0"
                                              Fill="{Binding State, Converter={StaticResource StageStateToBrush}}"
@@ -87,7 +88,12 @@
                                         <ProgressBar Margin="0,3,0,0" Maximum="1" Value="{Binding Progress, Mode=OneWay, TargetNullValue=0}"
                                                      Visibility="Collapsed" x:Name="Bar" />
                                     </StackPanel>
-                                    <Button Grid.Column="2" Style="{StaticResource SmallButton}" VerticalAlignment="Top"
+                                    <Button Grid.Column="2" Style="{StaticResource SmallButton}" VerticalAlignment="Top" Margin="0,0,4,0"
+                                            Content="✎" ToolTip="Settings of this step: prompt, model, parameters"
+                                            Visibility="{Binding HasSettings, Converter={StaticResource BoolToVisibility}}"
+                                            Command="{Binding DataContext.EditStageSettingsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding}" />
+                                    <Button Grid.Column="3" Style="{StaticResource SmallButton}" VerticalAlignment="Top"
                                             Content="{Binding State, Converter={StaticResource StageStateToAction}}"
                                             ToolTip="Run this stage (and anything it needs); ↻ re-runs a finished stage"
                                             Command="{Binding DataContext.RunStageCommand, RelativeSource={RelativeSource AncestorType=Window}}"

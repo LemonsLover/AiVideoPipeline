@@ -39,6 +39,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly EditModeStore _modes;
     private readonly IDialogService _dialogs;
     private readonly YouTubeImporter _importer;
+    private readonly Highlights.Core.Settings.SettingsStore _settings;
     private readonly IOptionsMonitor<ImportOptions> _importOptions;
 
     private CancellationTokenSource? _cts;
@@ -49,7 +50,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public MainViewModel(IProjectStore store, PipelineRunner runner, ReviewService reviews, EditModeStore modes,
         IDialogService dialogs, PlayerService player, EnvironmentCheck environment,
-        YouTubeImporter importer, IOptionsMonitor<ImportOptions> importOptions)
+        YouTubeImporter importer, IOptionsMonitor<ImportOptions> importOptions, Highlights.Core.Settings.SettingsStore settings)
     {
         _store = store;
         _runner = runner;
@@ -57,6 +58,7 @@ public sealed partial class MainViewModel : ObservableObject
         _modes = modes;
         _dialogs = dialogs;
         _importer = importer;
+        _settings = settings;
         _importOptions = importOptions;
         Player = player;
 
@@ -105,7 +107,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsIdle))]
-    [NotifyCanExecuteChangedFor(nameof(RunStageCommand), nameof(BuildVideoCommand), nameof(CancelCommand), nameof(OpenCommand), nameof(ImportCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RunStageCommand), nameof(BuildVideoCommand), nameof(CancelCommand), nameof(OpenCommand), nameof(ImportCommand), nameof(EditStageSettingsCommand))]
     public partial bool IsBusy { get; private set; }
 
     public bool IsIdle => !IsBusy;
@@ -296,6 +298,26 @@ public sealed partial class MainViewModel : ObservableObject
         if (force && stage.UsesLlm && !_dialogs.Confirm($"\"{stage.Title}\" is up to date. Ask the LLM again (costs money)?", "Re-run"))
             return;
         await RunAsync((progress, ct) => _runner.RunAsync(Project!, stage.Name, force, progress, ct), stage.Title);
+    }
+
+    /// <summary>Opens the settings of a pipeline step (pen icon); saved changes make the step and later ones outdated.</summary>
+    [RelayCommand(CanExecute = nameof(IsIdle))]
+    private void EditStageSettings(StageViewModel stage)
+    {
+        if (Highlights.Core.Settings.StageSettingsCatalog.For(stage.Name) is not { } settings)
+            return;
+        try
+        {
+            if (!_dialogs.EditStageSettings(new StageSettingsViewModel(settings, _settings, Project)))
+                return;
+        }
+        catch (Exception ex) when (ex is PipelineException or IOException or System.Text.Json.JsonException)
+        {
+            _dialogs.ShowError(ex.Message);
+            return;
+        }
+        AddLog($"Settings of \"{stage.Title}\" saved");
+        RefreshStages();
     }
 
     /// <summary>Runs everything needed for highlights.mp4 and youtube.txt.</summary>

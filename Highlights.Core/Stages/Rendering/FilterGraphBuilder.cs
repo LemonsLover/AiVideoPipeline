@@ -10,12 +10,18 @@ namespace Highlights.Core.Stages.Rendering;
 /// </summary>
 internal static class FilterGraphBuilder
 {
-    /// <param name="TitleFiles">Per clip: relative path of a UTF-8 file with the lower-third title, or null.</param>
+    /// <summary>How an on-screen text looks and where it goes.</summary>
+    public sealed record TextStyle(int FontSize, double Seconds, string Position, string Color, double BoxOpacity);
+
+    /// <param name="TitleFiles">Per clip: relative path of a UTF-8 file with the title, or null.</param>
     /// <param name="CaptionFiles">Per clip: relative path of a UTF-8 file with the context caption, or null.</param>
+    /// <param name="ClipTransition">xfade transition between clips.</param>
+    /// <param name="InnerTransition">xfade transition at jump cuts inside a clip.</param>
     public sealed record Settings(
         int Width, int Height, double FrameRate, IReadOnlyList<int> AudioTracks,
         IReadOnlyList<string?> TitleFiles, IReadOnlyList<string?> CaptionFiles, string? FontFile,
-        int TitleFontSize, double TitleSeconds, int CaptionFontSize, double CaptionSeconds);
+        TextStyle Title, TextStyle Caption,
+        string ClipTransition, string InnerTransition, double FadeInSeconds, double FadeOutSeconds);
 
     public const string VideoOut = "vout";
     public const string AudioOut = "aout";
@@ -55,9 +61,9 @@ internal static class FilterGraphBuilder
                 if (p.SegmentIndex == 0 && s.FontFile is not null)
                 {
                     if (s.CaptionFiles[c] is { } caption)
-                        sb.Append(',').Append(Caption(caption, s));
+                        sb.Append(',').Append(DrawText(caption, s.FontFile, s.Caption, delay: 0.2));
                     if (s.TitleFiles[c] is { } title)
-                        sb.Append(',').Append(Title(title, s));
+                        sb.Append(',').Append(DrawText(title, s.FontFile, s.Title, delay: 0.3));
                 }
                 sb.Append($"[p{n}v];\n");
 
@@ -74,7 +80,8 @@ internal static class FilterGraphBuilder
             var p = plan.Pieces[n];
             if (p.FadeIn > 0)
             {
-                sb.Append($"[{video}][p{n}v]xfade=transition=fade:duration={F(p.FadeIn)}:offset={F(p.OutputStart)}[vx{n}];\n");
+                var transition = p.SegmentIndex == 0 ? s.ClipTransition : s.InnerTransition;
+                sb.Append($"[{video}][p{n}v]xfade=transition={transition}:duration={F(p.FadeIn)}:offset={F(p.OutputStart)}[vx{n}];\n");
                 sb.Append($"[{audio}][p{n}a]acrossfade=d={F(p.FadeIn)}:c1=tri:c2=tri[ax{n}];\n");
             }
             else
@@ -84,9 +91,22 @@ internal static class FilterGraphBuilder
             (video, audio) = ($"vx{n}", $"ax{n}");
         }
 
-        // xfade may switch to 4:4:4 internally; players and the "high" profile need 4:2:0.
-        sb.Append($"[{video}]format=yuv420p[{VideoOut}];\n");
-        sb.Append($"[{audio}]anull[{AudioOut}]");
+        // Fade in from / out to black and silence; xfade may switch to 4:4:4, players and "high" profile need 4:2:0.
+        var fadeIn = Math.Min(s.FadeInSeconds, plan.TotalSeconds / 4);
+        var fadeOut = Math.Min(s.FadeOutSeconds, plan.TotalSeconds / 4);
+        sb.Append($"[{video}]");
+        if (fadeIn > 0)
+            sb.Append($"fade=t=in:st=0:d={F(fadeIn)},");
+        if (fadeOut > 0)
+            sb.Append($"fade=t=out:st={F(plan.TotalSeconds - fadeOut)}:d={F(fadeOut)},");
+        sb.Append($"format=yuv420p[{VideoOut}];\n");
+
+        sb.Append($"[{audio}]");
+        if (fadeIn > 0)
+            sb.Append($"afade=t=in:st=0:d={F(fadeIn)},");
+        if (fadeOut > 0)
+            sb.Append($"afade=t=out:st={F(plan.TotalSeconds - fadeOut)}:d={F(fadeOut)},");
+        sb.Append($"anull[{AudioOut}]");
         return sb.ToString();
     }
 
@@ -98,22 +118,35 @@ internal static class FilterGraphBuilder
         throw new InvalidOperationException("Piece is not part of the plan.");
     }
 
-    /// <summary>Lower-third title that fades in and out over the first TitleSeconds of the clip.</summary>
-    private static string Title(string file, Settings s) =>
-        DrawText(file, s, s.TitleFontSize, s.TitleSeconds, "x=80:y=h-th-150", delay: 0.3);
+    /// <summary>drawtext x/y for a named position (margins scale with the frame).</summary>
+    internal static string Position(string position) => position switch
+    {
+        "center" => "x=(w-tw)/2:y=(h-th)/2",
+        "bottom" => "x=(w-tw)/2:y=h-th-h*0.12",
+        "top-left" => "x=w*0.04:y=h*0.08",
+        "bottom-left" => "x=w*0.04:y=h-th-h*0.14",
+        _ => "x=(w-tw)/2:y=h*0.08", // top
+    };
 
-    /// <summary>Context caption: top centre, shown first, so the viewer knows what's going on before the action.</summary>
-    private static string Caption(string file, Settings s) =>
-        DrawText(file, s, s.CaptionFontSize, s.CaptionSeconds, "x=(w-tw)/2:y=90", delay: 0.2);
-
-    private static string DrawText(string file, Settings s, int fontSize, double seconds, string position, double delay)
+    /// <summary>Text that fades in, stays for Seconds, and fades out, over a translucent box.</summary>
+    private static string DrawText(string file, string font, TextStyle style, double delay)
     {
         const double fade = 0.4;
         var t0 = delay;
-        var t1 = delay + seconds;
+        var t1 = delay + style.Seconds;
         var alpha = $"if(lt(t,{F(t0)}),0,if(lt(t,{F(t0 + fade)}),(t-{F(t0)})/{F(fade)},if(lt(t,{F(t1 - fade)}),1,if(lt(t,{F(t1)}),({F(t1)}-t)/{F(fade)},0))))";
-        return $"drawtext=fontfile='{s.FontFile}':textfile='{file}':fontsize={fontSize}:fontcolor=white:" +
-               $"box=1:boxcolor=black@0.6:boxborderw=20:line_spacing=8:{position}:alpha='{alpha}'";
+        var box = style.BoxOpacity > 0 ? $"box=1:boxcolor=black@{F(Math.Clamp(style.BoxOpacity, 0, 1))}:boxborderw=20:" : "box=0:borderw=3:bordercolor=black:";
+        return $"drawtext=fontfile='{font}':textfile='{file}':fontsize={style.FontSize}:fontcolor={Color(style.Color)}:" +
+               $"{box}line_spacing=8:{Position(style.Position)}:alpha='{alpha}'";
+    }
+
+    /// <summary>Color names or #RRGGBB; anything unexpected falls back to white (keeps the filtergraph valid).</summary>
+    private static string Color(string color)
+    {
+        var c = color.Trim();
+        if (c.Length == 7 && c[0] == '#' && c[1..].All(Uri.IsHexDigit))
+            return "0x" + c[1..];
+        return c.All(char.IsAsciiLetter) && c.Length > 0 ? c : "white";
     }
 
     private static string F(double v) => v.ToString("0.###", CultureInfo.InvariantCulture);
