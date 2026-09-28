@@ -13,6 +13,7 @@
 
     <Window.InputBindings>
         <KeyBinding Key="O" Modifiers="Control" Command="{Binding OpenCommand}" />
+        <KeyBinding Key="I" Modifiers="Control" Command="{Binding ImportCommand}" />
     </Window.InputBindings>
 
     <Grid Margin="10">
@@ -30,6 +31,8 @@
         <!-- Toolbar -->
         <DockPanel Grid.ColumnSpan="3" Margin="0,0,0,10" LastChildFill="False">
             <Button DockPanel.Dock="Left" Content="Open video / project…" Command="{Binding OpenCommand}" ToolTip="Ctrl+O, or drop a file on the window" />
+            <Button DockPanel.Dock="Left" Content="Import from YouTube…" Command="{Binding ImportCommand}" Margin="6,0,0,0"
+                    ToolTip="Download a video by link (unlisted videos work) and open it as a project" />
             <StackPanel DockPanel.Dock="Left" Margin="14,0,0,0" VerticalAlignment="Center">
                 <TextBlock Text="{Binding Project.VideoPath, FallbackValue='No project open'}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxWidth="700" />
                 <TextBlock Text="{Binding ProjectInfo}" Style="{StaticResource Muted}" />

@@ -30,6 +30,7 @@ public static class ServiceCollectionExtensions
         services.Configure<AnalyzeOptions>(configuration.GetSection(AnalyzeOptions.SectionName));
         services.Configure<PostprocessOptions>(configuration.GetSection(PostprocessOptions.SectionName));
         services.Configure<RenderOptions>(configuration.GetSection(RenderOptions.SectionName));
+        services.Configure<ImportOptions>(configuration.GetSection(ImportOptions.SectionName));
 
         services.AddSingleton<ToolLocator>();
         services.AddSingleton<EnvironmentCheck>();
@@ -41,6 +42,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ModelDownloader>();
         services.AddSingleton<WhisperModelManager>();
         services.AddSingleton<YamnetModelManager>();
+        services.AddSingleton<YouTubeImporter>();
 
         services.AddHttpClient(OpenRouterClient.HttpClientName, (sp, c) =>
         {

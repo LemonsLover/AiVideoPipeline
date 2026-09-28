@@ -15,6 +15,9 @@ public sealed class HighlightsProject
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.Now;
 
+    /// <summary>Link the video was imported from (YouTube etc.), if any.</summary>
+    public string? SourceUrl { get; set; }
+
     public MediaInfo? Media { get; set; }
 
     public ProjectSettings Settings { get; set; } = new();

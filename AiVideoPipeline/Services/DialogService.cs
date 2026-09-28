@@ -11,6 +11,9 @@ public interface IDialogService
 
     bool Confirm(string message, string title);
 
+    /// <summary>Asks for a video link and download folder; null when cancelled.</summary>
+    (string Url, string Folder)? AskImport(string defaultFolder);
+
     void ShowError(string message);
 
     /// <summary>Opens a file or folder with its default application (Explorer, player, editor).</summary>
@@ -27,6 +30,15 @@ public sealed class DialogService : IDialogService
             Filter = "Videos and projects|*.mkv;*.mp4;*.mov;*.avi;*.webm;*.flv;project.json|All files|*.*",
         };
         return dialog.ShowDialog(Application.Current.MainWindow) == true ? dialog.FileName : null;
+    }
+
+    public (string Url, string Folder)? AskImport(string defaultFolder)
+    {
+        // Pre-fill a link from the clipboard: usually the user just copied it from YouTube.
+        var clip = Clipboard.ContainsText() ? Clipboard.GetText().Trim() : null;
+        var link = clip is not null && Uri.TryCreate(clip, UriKind.Absolute, out var u) && u.Scheme.StartsWith("http") ? clip : null;
+        var window = new ImportWindow(defaultFolder, link) { Owner = Application.Current.MainWindow };
+        return window.ShowDialog() == true ? (window.Url, window.Folder) : null;
     }
 
     public bool Confirm(string message, string title) =>

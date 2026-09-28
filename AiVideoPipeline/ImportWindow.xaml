@@ -1,0 +1,25 @@
+<Window x:Class="AiVideoPipeline.ImportWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Import from YouTube" Width="560" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Style="{StaticResource {x:Type Window}}" Icon="Assets/app.ico"
+        FocusManager.FocusedElement="{Binding ElementName=UrlBox}">
+    <StackPanel Margin="18">
+        <TextBlock Text="Video link" Style="{StaticResource Muted}" />
+        <TextBox x:Name="UrlBox" Margin="0,4,0,4" />
+        <TextBlock Text="Unlisted videos work with their link. The video is downloaded (up to 1080p) and a project is created next to it."
+                   Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,12" />
+
+        <TextBlock Text="Save to" Style="{StaticResource Muted}" />
+        <DockPanel Margin="0,4,0,16">
+            <Button DockPanel.Dock="Right" Content="Change…" Click="OnChangeFolder" Margin="6,0,0,0" />
+            <TextBox x:Name="FolderBox" IsReadOnly="True" />
+        </DockPanel>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Import" Style="{StaticResource AccentButton}" IsDefault="True" Click="OnImport" MinWidth="90" />
+            <Button Content="Cancel" IsCancel="True" Margin="8,0,0,0" MinWidth="80" />
+        </StackPanel>
+    </StackPanel>
+</Window>

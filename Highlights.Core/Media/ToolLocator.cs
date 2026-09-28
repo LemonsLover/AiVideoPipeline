@@ -21,6 +21,19 @@ public sealed class ToolLocator(IOptionsMonitor<ToolsOptions> options)
     /// <summary>Used by the CLI to preview clips.</summary>
     public string Ffplay => Resolve("ffplay", _ => null);
 
+    /// <summary>Same search for any other tool (e.g. yt-dlp); null when it isn't found anywhere.</summary>
+    public string? TryFind(string tool, string? configured)
+    {
+        try
+        {
+            return Resolve(tool, _ => configured);
+        }
+        catch (PipelineException) when (string.IsNullOrWhiteSpace(configured))
+        {
+            return null;
+        }
+    }
+
     private string Resolve(string tool, Func<ToolsOptions, string?> ownSetting)
     {
         var o = options.CurrentValue;

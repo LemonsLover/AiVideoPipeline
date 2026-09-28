@@ -5,6 +5,9 @@ using AiVideoPipeline.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Highlights.Core;
+using Highlights.Core.Configuration;
+using Highlights.Core.Media;
+using Microsoft.Extensions.Options;
 using Highlights.Core.Pipeline;
 using Highlights.Core.Projects;
 using Highlights.Core.Stages.Analysis;
@@ -35,6 +38,8 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly ReviewService _reviews;
     private readonly EditModeStore _modes;
     private readonly IDialogService _dialogs;
+    private readonly YouTubeImporter _importer;
+    private readonly IOptionsMonitor<ImportOptions> _importOptions;
 
     private CancellationTokenSource? _cts;
     private ReviewDocument? _review;
@@ -43,13 +48,16 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly HashSet<string> _startedStages = [];
 
     public MainViewModel(IProjectStore store, PipelineRunner runner, ReviewService reviews, EditModeStore modes,
-        IDialogService dialogs, PlayerService player, EnvironmentCheck environment)
+        IDialogService dialogs, PlayerService player, EnvironmentCheck environment,
+        YouTubeImporter importer, IOptionsMonitor<ImportOptions> importOptions)
     {
         _store = store;
         _runner = runner;
         _reviews = reviews;
         _modes = modes;
         _dialogs = dialogs;
+        _importer = importer;
+        _importOptions = importOptions;
         Player = player;
 
         Stages =
@@ -94,7 +102,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsIdle))]
-    [NotifyCanExecuteChangedFor(nameof(RunStageCommand), nameof(BuildVideoCommand), nameof(CancelCommand), nameof(OpenCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RunStageCommand), nameof(BuildVideoCommand), nameof(CancelCommand), nameof(OpenCommand), nameof(ImportCommand))]
     public partial bool IsBusy { get; private set; }
 
     public bool IsIdle => !IsBusy;
@@ -153,6 +161,50 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (_dialogs.PickVideoOrProject() is { } path)
             await OpenPathAsync(path);
+    }
+
+    /// <summary>Downloads a video by link (yt-dlp) and opens its project.</summary>
+    [RelayCommand(CanExecute = nameof(IsIdle))]
+    private async Task ImportAsync()
+    {
+        if (_dialogs.AskImport(_importOptions.CurrentValue.EffectiveDownloadDirectory) is not { } request)
+            return;
+
+        await FlushReviewAsync();
+        IsBusy = true;
+        _cts = new CancellationTokenSource();
+        var progress = new Progress<StageProgress>(p =>
+        {
+            StatusText = $"Import: {p.Message}";
+            StatusProgress = p.Fraction;
+        });
+        AddLog($"Importing {request.Url}");
+        HighlightsProject? project = null;
+        try
+        {
+            project = await Task.Run(() => _importer.ImportAsync(request.Url, request.Folder, progress, _cts.Token));
+            AddLog($"Downloaded {project.ResolveVideoPath()}");
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText = "Import cancelled.";
+            AddLog("Import cancelled", isError: true);
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Import failed: {FirstLine(ex.Message)}";
+            AddLog($"Import failed: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            IsBusy = false;
+            StatusProgress = null;
+            _cts.Dispose();
+            _cts = null;
+        }
+
+        if (project is not null)
+            await OpenPathAsync(project.Directory);
     }
 
     public async Task OpenPathAsync(string path)

@@ -27,6 +27,7 @@ using var host = builder.Build();
 var root = new RootCommand("Finds funny moments in gameplay recordings and builds a highlights video.")
 {
     NewCommand.Create(host.Services),
+    ImportCommand.Create(host.Services),
     TracksCommand.Create(host.Services),
     ExtractCommand.Create(host.Services),
     TranscribeCommand.Create(host.Services),
