@@ -20,7 +20,10 @@ public sealed class YamnetModelManager(ModelDownloader downloader, IOptionsMonit
     public async Task<string> EnsureAsync(IProgress<StageProgress> progress, string stage, CancellationToken cancellationToken)
     {
         var dir = ModelDirectory;
-        if (File.Exists(Path.Combine(dir, ModelFile)) && File.Exists(Path.Combine(dir, LabelsFile)))
+        bool Complete() => File.Exists(Path.Combine(dir, ModelFile)) && File.Exists(Path.Combine(dir, LabelsFile));
+        if (Complete())
+            return dir;
+        if (ModelsOptions.TryAdoptLegacy(dir, models.CurrentValue.EffectiveDirectory) && Complete())
             return dir;
 
         var zip = dir + ".zip";

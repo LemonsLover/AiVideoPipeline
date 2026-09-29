@@ -14,7 +14,7 @@ namespace Highlights.Core;
 /// </remarks>
 public static class HighlightsConfiguration
 {
-    /// <summary>Settings, downloaded models and tools: %USERPROFILE%\.highlights.</summary>
+    /// <summary>Personal settings, prompt and mode overrides: %USERPROFILE%\.highlights (models and tools live next to the exe).</summary>
     public static string UserDirectory { get; } =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".highlights");
 

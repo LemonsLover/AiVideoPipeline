@@ -22,6 +22,11 @@ public sealed class WhisperModelManager(
         var path = ResolvePath(model);
         if (File.Exists(path))
             return path;
+        if (!IsExplicitPath(model) && ModelsOptions.TryAdoptLegacy(path, models.CurrentValue.EffectiveDirectory))
+        {
+            progress.Report(new StageProgress(stage, null, $"moved {Path.GetFileName(path)} next to the app"));
+            return path;
+        }
         if (IsExplicitPath(model))
             throw new PipelineException($"Whisper model file not found: {path}");
 
