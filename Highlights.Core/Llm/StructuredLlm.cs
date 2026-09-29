@@ -72,7 +72,7 @@ public sealed class StructuredLlm(ILlmClient client, IOptionsMonitor<OpenRouterO
                 {
                     try
                     {
-                        response = await client.CompleteAsync(request, cancellationToken);
+                        response = await SendAsync(request, progress, stage, cancellationToken);
                     }
                     catch (LlmException ex) when (!ex.IsFatal && IsUnroutableParameters(ex)
                                                   && (request.Temperature is not null || request.MaxOutputTokens is not null))
@@ -80,7 +80,7 @@ public sealed class StructuredLlm(ILlmClient client, IOptionsMonitor<OpenRouterO
                         // The catalog lists parameters across all providers; the ones that enforce the schema
                         // may still reject e.g. temperature. Retry with only the essential parameters.
                         logger.LogWarning("{Model}: retrying without optional parameters", model);
-                        response = await client.CompleteAsync(request with { Temperature = null, MaxOutputTokens = null }, cancellationToken);
+                        response = await SendAsync(request with { Temperature = null, MaxOutputTokens = null }, progress, stage, cancellationToken);
                     }
                 }
                 catch (LlmException ex) when (!ex.IsFatal)
@@ -115,6 +115,32 @@ public sealed class StructuredLlm(ILlmClient client, IOptionsMonitor<OpenRouterO
         }
 
         throw new PipelineException("All LLM models failed:\n  " + string.Join("\n  ", failures));
+    }
+
+    /// <summary>
+    /// Sends a request, waiting out rate limits (429, typical for free models with per-minute caps)
+    /// a few times before giving up on the model, so a free model doesn't fall straight through to a paid fallback.
+    /// </summary>
+    private async Task<LlmResponse> SendAsync(LlmRequest request, IProgress<StageProgress> progress, string stage,
+        CancellationToken cancellationToken)
+    {
+        var retries = Math.Max(0, options.CurrentValue.RateLimitRetries);
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                return await client.CompleteAsync(request, cancellationToken);
+            }
+            catch (LlmException ex) when (ex.IsRateLimit && attempt < retries)
+            {
+                var wait = ex.RetryAfter is { } ra && ra > TimeSpan.Zero && ra <= TimeSpan.FromMinutes(2)
+                    ? ra
+                    : TimeSpan.FromSeconds(15 * (attempt + 1));
+                logger.LogWarning("{Model}: rate limited, waiting {Seconds:0}s", request.Model, wait.TotalSeconds);
+                progress.Report(new StageProgress(stage, null, $"{request.Model} is rate limited, waiting {wait.TotalSeconds:0}s", "llm"));
+                await Task.Delay(wait, cancellationToken);
+            }
+        }
     }
 
     private static string? TryParse<T>(LlmResponse response, Func<T, string?> validate, out T? value)

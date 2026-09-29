@@ -1,0 +1,115 @@
+<Window x:Class="AiVideoPipeline.ModelPickerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:AiVideoPipeline.ViewModels"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance vm:ModelPickerViewModel}"
+        Title="Choose models" Width="940" Height="720" MinWidth="700" MinHeight="420"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Style="{StaticResource {x:Type Window}}" Icon="Assets/app.ico">
+
+    <Window.Resources>
+        <!-- Column widths shared by the header and the rows. -->
+        <GridLength x:Key="Col.Price">90</GridLength>
+        <GridLength x:Key="Col.Context">70</GridLength>
+        <GridLength x:Key="Col.Flag">60</GridLength>
+    </Window.Resources>
+
+    <DockPanel Margin="16">
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+            <TextBlock Text="Choose models" FontSize="17" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding Hint}" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,0" />
+        </StackPanel>
+
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+            <ComboBox DockPanel.Dock="Right" Width="150" Margin="8,0,0,0" ItemsSource="{Binding SortOptions}" SelectedItem="{Binding Sort}" />
+            <CheckBox DockPanel.Dock="Right" Content="Structured output" IsChecked="{Binding StructuredOnly}" VerticalAlignment="Center" Margin="12,0,0,0"
+                      ToolTip="Only models that can enforce the JSON schema (more reliable answers)" />
+            <CheckBox DockPanel.Dock="Right" Content="Accepts images" IsChecked="{Binding ImagesOnly}" IsEnabled="{Binding CanToggleImages}"
+                      VerticalAlignment="Center" Margin="12,0,0,0" />
+            <CheckBox DockPanel.Dock="Right" Content="Free only" IsChecked="{Binding FreeOnly}" VerticalAlignment="Center" Margin="12,0,0,0" />
+            <TextBox Text="{Binding Search, UpdateSourceTrigger=PropertyChanged, Delay=150}" ToolTip="Search by id or name, e.g. qwen vl" />
+        </DockPanel>
+
+        <!-- The step's list: primary first, then fallbacks. -->
+        <DockPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
+            <StackPanel DockPanel.Dock="Right" VerticalAlignment="Bottom" Margin="8,0,0,0">
+                <Button Content="Move up" Command="{Binding MoveUpCommand}" Margin="0,0,0,6" />
+                <Button Content="Remove" Command="{Binding RemoveCommand}" Margin="0,0,0,16" />
+                <Button Content="OK" Style="{StaticResource AccentButton}" IsDefault="True" Click="OnOk" MinWidth="90" Margin="0,0,0,6" />
+                <Button Content="Cancel" IsCancel="True" MinWidth="90" />
+            </StackPanel>
+            <StackPanel>
+                <TextBlock Text="This step's models (primary first, then fallbacks; empty = the general list)" Style="{StaticResource Muted}" Margin="0,0,0,4" />
+                <ListBox ItemsSource="{Binding Current}" SelectedItem="{Binding SelectedCurrent}" Height="120" />
+            </StackPanel>
+        </DockPanel>
+
+        <DockPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+            <Button DockPanel.Dock="Left" Content="Use as primary" Style="{StaticResource AccentButton}" Command="{Binding UseAsPrimaryCommand}" />
+            <Button DockPanel.Dock="Left" Content="Add as fallback" Command="{Binding AddAsFallbackCommand}" Margin="8,0,0,0" />
+            <TextBlock Text="{Binding Rows.Count, StringFormat={}{0} models}" Style="{StaticResource Muted}" VerticalAlignment="Center"
+                       HorizontalAlignment="Right" />
+        </DockPanel>
+
+        <Border Style="{StaticResource Panel}" Padding="0">
+            <DockPanel>
+                <Grid DockPanel.Dock="Top" Margin="10,8,28,6" TextElement.FontWeight="SemiBold">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="{StaticResource Col.Price}" />
+                        <ColumnDefinition Width="{StaticResource Col.Price}" />
+                        <ColumnDefinition Width="{StaticResource Col.Context}" />
+                        <ColumnDefinition Width="{StaticResource Col.Flag}" />
+                        <ColumnDefinition Width="{StaticResource Col.Flag}" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Model" />
+                    <TextBlock Grid.Column="1" Text="Input /M" TextAlignment="Right" />
+                    <TextBlock Grid.Column="2" Text="Output /M" TextAlignment="Right" />
+                    <TextBlock Grid.Column="3" Text="Context" TextAlignment="Right" />
+                    <TextBlock Grid.Column="4" Text="Images" TextAlignment="Center" />
+                    <TextBlock Grid.Column="5" Text="Schema" TextAlignment="Center" ToolTip="Supports structured output (json_schema)" />
+                </Grid>
+                <Grid>
+                    <ListBox ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected}" BorderThickness="0"
+                             VirtualizingPanel.IsVirtualizing="True" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             MouseDoubleClick="OnRowDoubleClick">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="vm:ModelRowViewModel">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="{StaticResource Col.Price}" />
+                                        <ColumnDefinition Width="{StaticResource Col.Price}" />
+                                        <ColumnDefinition Width="{StaticResource Col.Context}" />
+                                        <ColumnDefinition Width="{StaticResource Col.Flag}" />
+                                        <ColumnDefinition Width="{StaticResource Col.Flag}" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Id}" Style="{StaticResource Muted}" FontSize="11" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" Text="{Binding InputPrice}" TextAlignment="Right" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Text="{Binding OutputPrice}" TextAlignment="Right" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="3" Text="{Binding Context}" TextAlignment="Right" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="4" Text="{Binding Images}" TextAlignment="Center" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="5" Text="{Binding JsonSchema}" TextAlignment="Center" VerticalAlignment="Center" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                    </ListBox>
+                    <TextBlock Text="{Binding Status}" Style="{StaticResource Muted}" TextWrapping="Wrap" HorizontalAlignment="Center"
+                               VerticalAlignment="Center" Margin="20"
+                               Visibility="{Binding Status, Converter={StaticResource NullToVisibility}}" />
+                </Grid>
+            </DockPanel>
+        </Border>
+    </DockPanel>
+</Window>

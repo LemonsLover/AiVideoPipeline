@@ -26,6 +26,13 @@ public sealed partial class SettingFieldViewModel : ObservableObject
     public SettingKind Kind => Field.Kind;
     public IReadOnlyList<string> Choices => Field.Choices ?? [];
 
+    /// <summary>Shows the "Browse…" model picker button.</summary>
+    public bool HasModelPicker => Field.Picker != ModelPicker.None;
+
+    /// <summary>The items of a list value, in order (same separators as <see cref="SettingsStore"/>).</summary>
+    public static List<string> SplitList(string value) =>
+        [.. value.Split([',', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)];
+
     /// <summary>Shown under the field: the default, so it's clear what a reset does.</summary>
     public string DefaultText => Kind is SettingKind.Prompt or SettingKind.MultilineText
         ? ""

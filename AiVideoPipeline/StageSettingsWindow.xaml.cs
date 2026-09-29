@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using AiVideoPipeline.ViewModels;
+using Highlights.Core.Llm;
 using Highlights.Core.Settings;
 
 namespace AiVideoPipeline;
@@ -9,11 +10,24 @@ namespace AiVideoPipeline;
 public partial class StageSettingsWindow : Window
 {
     private readonly StageSettingsViewModel _viewModel;
+    private readonly ILlmClient _llm;
 
-    public StageSettingsWindow(StageSettingsViewModel viewModel)
+    public StageSettingsWindow(StageSettingsViewModel viewModel, ILlmClient llm)
     {
         InitializeComponent();
         DataContext = _viewModel = viewModel;
+        _llm = llm;
+    }
+
+    private void OnBrowseModels(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not SettingFieldViewModel field)
+            return;
+        // Empty = inherited: start from the default so "add as fallback" extends what the step actually uses.
+        var current = SettingFieldViewModel.SplitList(field.Value.Trim().Length > 0 ? field.Value : field.Default);
+        var picker = new ModelPickerViewModel(_llm, field.Field.Picker, current);
+        if (new ModelPickerWindow(picker) { Owner = this }.ShowDialog() == true)
+            field.Value = string.Join(", ", picker.Current);
     }
 
     private void OnSave(object sender, RoutedEventArgs e)

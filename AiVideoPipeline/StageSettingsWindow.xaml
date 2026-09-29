@@ -33,7 +33,12 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="{Binding Label}" VerticalAlignment="Top" Margin="0,5,10,0" TextWrapping="Wrap" />
                 <StackPanel Grid.Column="1">
-                    <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" />
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="Browse…" Margin="6,0,0,0" Click="OnBrowseModels"
+                                ToolTip="Pick from the OpenRouter catalog, with prices (free and cheap models)"
+                                Visibility="{Binding HasModelPicker, Converter={StaticResource BoolToVisibility}}" />
+                        <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}" />
+                    </DockPanel>
                     <TextBlock Text="{Binding Help}" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,3,0,0"
                                Visibility="{Binding Help, Converter={StaticResource NullToVisibility}}" />
                     <TextBlock Text="{Binding DefaultText}" Style="{StaticResource Muted}" FontSize="11" Opacity="0.7" />

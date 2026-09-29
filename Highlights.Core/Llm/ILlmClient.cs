@@ -43,10 +43,15 @@ public sealed record LlmUsage(int PromptTokens, int CompletionTokens, decimal? C
 public sealed record LlmResponse(string Content, string Model, LlmUsage Usage, string? FinishReason);
 
 /// <param name="SupportedParameters">Request parameters the model accepts (OpenRouter "supported_parameters").</param>
-public sealed record LlmModelInfo(string Id, IReadOnlySet<string> SupportedParameters, int? ContextLength)
+/// <param name="PromptPricePerMillion">USD per million input tokens (0 = free, negative = unknown/varies).</param>
+/// <param name="CompletionPricePerMillion">USD per million output tokens (0 = free, negative = unknown/varies).</param>
+public sealed record LlmModelInfo(
+    string Id, IReadOnlySet<string> SupportedParameters, int? ContextLength,
+    string Name = "", decimal PromptPricePerMillion = 0, decimal CompletionPricePerMillion = 0, bool AcceptsImages = false)
 {
     public bool SupportsJsonSchema => SupportedParameters.Contains("structured_outputs");
     public bool Supports(string parameter) => SupportedParameters.Contains(parameter);
+    public bool IsFree => PromptPricePerMillion == 0 && CompletionPricePerMillion == 0;
 }
 
 public interface ILlmClient
@@ -55,10 +60,21 @@ public interface ILlmClient
 
     /// <summary>Model metadata, or null if the model is unknown to the provider.</summary>
     Task<LlmModelInfo?> GetModelInfoAsync(string model, CancellationToken cancellationToken = default);
+
+    /// <summary>All models the provider offers (for the model picker).</summary>
+    Task<IReadOnlyList<LlmModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default);
 }
 
 /// <summary>Provider error. <see cref="IsFatal"/> errors (auth, credits) stop the fallback chain.</summary>
-public sealed class LlmException(string message, bool isFatal, Exception? inner = null) : Exception(message, inner)
+/// <param name="StatusCode">HTTP status, when the provider answered with an error.</param>
+/// <param name="RetryAfter">How long the provider asks to wait (rate limits).</param>
+public sealed class LlmException(string message, bool isFatal, Exception? inner = null, int? statusCode = null, TimeSpan? retryAfter = null)
+    : Exception(message, inner)
 {
     public bool IsFatal { get; } = isFatal;
+    public int? StatusCode { get; } = statusCode;
+    public TimeSpan? RetryAfter { get; } = retryAfter;
+
+    /// <summary>Rate limited (typical for free models): worth waiting and retrying the same model.</summary>
+    public bool IsRateLimit => StatusCode == 429;
 }

@@ -25,6 +25,9 @@ public sealed class OpenRouterOptions
     /// <summary>Re-asks per model when the JSON is malformed or fails validation (the error is sent back).</summary>
     public int MaxRepairAttempts { get; set; } = 2;
 
+    /// <summary>How many times to wait and retry the same model on HTTP 429 before moving to the next one.</summary>
+    public int RateLimitRetries { get; set; } = 3;
+
     public int TimeoutSeconds { get; set; } = 600;
 
     /// <summary>Sent as X-Title so requests are identifiable in the OpenRouter dashboard.</summary>

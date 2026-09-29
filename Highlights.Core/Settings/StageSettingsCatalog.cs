@@ -8,12 +8,16 @@ public enum SettingKind { Text, MultilineText, Prompt, Number, Integer, Bool, Ch
 /// <summary>Where a setting is stored: configuration (pipeline.json), a prompt template, or the project's editing mode.</summary>
 public enum SettingSource { Config, Prompt, Mode }
 
+/// <summary>A list of OpenRouter model ids that can be picked from the catalog; Vision = the models must accept images.</summary>
+public enum ModelPicker { None, Text, Vision }
+
 /// <param name="Key">Config path ("Whisper:Model"), prompt file name ("plan.system.md") or mode property ("maxClipSeconds").</param>
 /// <param name="Group">Section header in the settings window.</param>
 /// <param name="Optional">An empty value is allowed and means "inherit" (e.g. per-step temperature).</param>
+/// <param name="Picker">Offer a "Browse…" model picker for this field.</param>
 public sealed record SettingField(
     string Key, string Label, SettingKind Kind, SettingSource Source = SettingSource.Config, string Group = "General",
-    string? Help = null, IReadOnlyList<string>? Choices = null, bool Optional = false);
+    string? Help = null, IReadOnlyList<string>? Choices = null, bool Optional = false, ModelPicker Picker = ModelPicker.None);
 
 public sealed record StageSettings(string Stage, string Title, IReadOnlyList<SettingField> Fields);
 
@@ -54,7 +58,7 @@ public static class StageSettingsCatalog
         [StageNames.Vision] = new(StageNames.Vision, "Watch the video (vision LLM)",
         [
             new("Vision:Enabled", "Enabled", SettingKind.Bool, Help: "Off = no frames are sent to an LLM; motion and game sounds are still used"),
-            .. Llm(StageNames.Vision),
+            .. Llm(StageNames.Vision, ModelPicker.Vision),
             new("Vision:OverviewIntervalSeconds", "Frame every (s)", SettingKind.Integer, Group: "Overview"),
             new("Vision:OverviewBatchFrames", "Frames per request", SettingKind.Integer, Group: "Overview"),
             new("Vision:OverviewLowDetail", "Low detail (≈4× cheaper)", SettingKind.Bool, Group: "Overview", Help: "Kills and rounds are still recognized; small text like nicknames may be misread"),
@@ -87,7 +91,7 @@ public static class StageSettingsCatalog
         [StageNames.Refine] = new(StageNames.Refine, "Refine cuts by frames (vision LLM)",
         [
             new("Vision:RefineEnabled", "Enabled", SettingKind.Bool, Help: "Also off when \"Watch the video\" is disabled"),
-            .. Llm(StageNames.Refine),
+            .. Llm(StageNames.Refine, ModelPicker.Vision),
             new("Vision:RefineLeadInSeconds", "Look before the in point (s)", SettingKind.Integer, Group: "Window"),
             new("Vision:RefineTailSeconds", "Look after the out point (s)", SettingKind.Integer, Group: "Window"),
             new("refine.system.md", "System prompt", SettingKind.Prompt, SettingSource.Prompt, "Prompt"),
@@ -152,10 +156,14 @@ public static class StageSettingsCatalog
     };
 
     /// <summary>Per-step LLM settings; empty = the general OpenRouter setting.</summary>
-    private static SettingField[] Llm(string stage) =>
+    private static SettingField[] Llm(string stage, ModelPicker picker = ModelPicker.Text) =>
     [
         new($"OpenRouter:Stages:{stage}:Models", "Models", SettingKind.List, Group: "Model", Optional: true,
-            Help: "OpenRouter model ids, primary first, comma-separated; empty = the general list"),
+            Help: picker == ModelPicker.Vision
+                ? "OpenRouter model ids that accept images, primary first, comma-separated; empty = the general list. " +
+                  "Browse… lists free and cheap ones (free models are rate limited: slower, but $0)"
+                : "OpenRouter model ids, primary first, comma-separated; empty = the general list",
+            Picker: picker),
         new($"OpenRouter:Stages:{stage}:Temperature", "Temperature", SettingKind.Number, Group: "Model", Optional: true,
             Help: "Empty = provider default (many current models ignore or reject it)"),
         new($"OpenRouter:Stages:{stage}:MaxOutputTokens", "Max output tokens", SettingKind.Integer, Group: "Model", Optional: true,

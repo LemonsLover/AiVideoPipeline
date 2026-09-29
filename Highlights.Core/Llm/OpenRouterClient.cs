@@ -72,8 +72,14 @@ public sealed class OpenRouterClient(
         {
             var text = await response.Content.ReadAsStringAsync(cancellationToken);
             if (!response.IsSuccessStatusCode)
+            {
+                var retryAfter = response.Headers.RetryAfter is { } ra
+                    ? ra.Delta ?? (ra.Date is { } date ? date - DateTimeOffset.UtcNow : null)
+                    : null;
                 throw new LlmException($"{request.Model}: HTTP {(int)response.StatusCode}: {ErrorMessage(text)}",
-                    isFatal: response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.PaymentRequired);
+                    isFatal: response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.PaymentRequired,
+                    statusCode: (int)response.StatusCode, retryAfter: retryAfter);
+            }
 
             using var doc = JsonDocument.Parse(text);
             var root = doc.RootElement;
@@ -103,19 +109,32 @@ public sealed class OpenRouterClient(
         }
     }
 
-    public async Task<LlmModelInfo?> GetModelInfoAsync(string model, CancellationToken cancellationToken = default)
+    public async Task<LlmModelInfo?> GetModelInfoAsync(string model, CancellationToken cancellationToken = default) =>
+        (await GetCatalogAsync(cancellationToken)).GetValueOrDefault(model);
+
+    public async Task<IReadOnlyList<LlmModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default) =>
+        [.. (await GetCatalogAsync(cancellationToken)).Values.OrderBy(m => m.Id, StringComparer.OrdinalIgnoreCase)];
+
+    private async Task<Dictionary<string, LlmModelInfo>> GetCatalogAsync(CancellationToken cancellationToken)
     {
         await _catalogLock.WaitAsync(cancellationToken);
         try
         {
-            _catalog ??= await LoadCatalogAsync(cancellationToken);
+            return _catalog ??= await LoadCatalogAsync(cancellationToken);
         }
         finally
         {
             _catalogLock.Release();
         }
-        return _catalog.GetValueOrDefault(model);
     }
+
+    /// <summary>OpenRouter prices are USD per token, as strings; negative (routers) = varies, kept as -1.</summary>
+    private static decimal PricePerMillion(JsonElement model, string name) =>
+        model.TryGetProperty("pricing", out var pricing) && pricing.TryGetProperty(name, out var p)
+        && p.ValueKind == JsonValueKind.String
+        && decimal.TryParse(p.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var perToken)
+            ? perToken < 0 ? -1 : perToken * 1_000_000m
+            : -1;
 
     private async Task<Dictionary<string, LlmModelInfo>> LoadCatalogAsync(CancellationToken cancellationToken)
     {
@@ -128,8 +147,13 @@ public sealed class OpenRouterClient(
             var parameters = m.TryGetProperty("supported_parameters", out var sp) && sp.ValueKind == JsonValueKind.Array
                 ? sp.EnumerateArray().Select(x => x.GetString()!).ToHashSet(StringComparer.OrdinalIgnoreCase)
                 : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var acceptsImages = m.TryGetProperty("architecture", out var arch)
+                && arch.TryGetProperty("input_modalities", out var mods) && mods.ValueKind == JsonValueKind.Array
+                && mods.EnumerateArray().Any(x => x.GetString() == "image");
             catalog[id] = new LlmModelInfo(id, parameters,
-                m.TryGetProperty("context_length", out var ctx) && ctx.ValueKind == JsonValueKind.Number ? ctx.GetInt32() : null);
+                m.TryGetProperty("context_length", out var ctx) && ctx.ValueKind == JsonValueKind.Number ? ctx.GetInt32() : null,
+                m.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String ? name.GetString()! : id,
+                PricePerMillion(m, "prompt"), PricePerMillion(m, "completion"), acceptsImages);
         }
         return catalog;
     }

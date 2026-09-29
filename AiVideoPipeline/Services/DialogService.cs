@@ -23,7 +23,7 @@ public interface IDialogService
     void OpenInShell(string path);
 }
 
-public sealed class DialogService : IDialogService
+public sealed class DialogService(Highlights.Core.Llm.ILlmClient llm) : IDialogService
 {
     public string? PickVideoOrProject()
     {
@@ -49,7 +49,7 @@ public sealed class DialogService : IDialogService
         == MessageBoxResult.Yes;
 
     public bool EditStageSettings(ViewModels.StageSettingsViewModel settings) =>
-        new StageSettingsWindow(settings) { Owner = Application.Current.MainWindow }.ShowDialog() == true;
+        new StageSettingsWindow(settings, llm) { Owner = Application.Current.MainWindow }.ShowDialog() == true;
 
     public void ShowError(string message) =>
         MessageBox.Show(Application.Current.MainWindow!, message, "Highlights", MessageBoxButton.OK, MessageBoxImage.Error);
